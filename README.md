@@ -2,7 +2,7 @@
 
 Overlay de seguridad para ejecutar **PayRam Core 3.9.0** (imagen propietaria, closed-source) con controles compensatorios: Postgres interno sin contraseña por defecto, payouts restrictivos, nginx sin XFF spoofing, bloqueo de rutas vulnerables, red aislada y Caddy con TLS.
 
-> **No es un parche completo del vendor.** PayRam Core es código cerrado. Este repositorio **no incluye** la imagen ni el código de PayRam y **no puede eliminar** los CVEs dentro del binario Go ni del build de Next.js. Mitiga la configuración, la superficie de red y los defaults peligrosos. Para mainnet con fondos reales sigue siendo necesario un rebuild parcheado del proveedor. Ver [docs/FINDINGS.md](docs/FINDINGS.md).
+> **No es un parche completo del vendor.** PayRam Core es código cerrado. Este repositorio **no incluye** la imagen ni el código de PayRam y **no puede eliminar** los CVEs dentro del binario Go ni del build de Next.js. Mitiga la configuración, la superficie de red y los defaults peligrosos. Para mainnet con fondos reales sigue siendo necesario un rebuild parcheado del proveedor. Ver [docs/FINDINGS.md](docs/FINDINGS.md) y el informe detallado [docs/AUDIT-2026-10-20.md](docs/AUDIT-2026-10-20.md).
 
 ## Qué hace el overlay
 
@@ -75,6 +75,8 @@ Si quieres actualizar paquetes Debian (opcional, puede romper compatibilidad del
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+`Dockerfile.hardened` **no se probó en esta sesión**; el overlay runtime sí se probó contra la imagen real. Si usas el build, valida con `./scripts/verify-hardening.sh`.
 
 ## Ajustes de host
 

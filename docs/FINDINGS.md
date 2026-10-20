@@ -1,7 +1,7 @@
 # Hallazgos que justifican este overlay
 
-Auditoría base: 2026-10-19. Detalle completo en el proyecto de facturación
-(`docs/SECURITY-AUDIT.md`).
+Auditoría base: 2026-10-19/20. Detalle completo en
+[`AUDIT-2026-10-20.md`](AUDIT-2026-10-20.md).
 
 | Severidad | Hallazgo | Mitigación en este repo |
 |---|---|---|
