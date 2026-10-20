@@ -202,8 +202,7 @@ PY
 
 confirm() {
   [[ "$ASSUME_YES" -eq 1 ]] && return 0
-  local fw_note="se abrirán 80/tcp, 443/tcp y 443/udp"
-  [[ "$EDGE_MODE" == "tunnel" ]] && fw_note="solo SSH; Cloudflare Tunnel no abre 80/443"
+  local fw_note="según EDGE_MODE (direct abre 80/443; tunnel solo SSH)"
   cat <<EOF
 
   Se modificará este VPS:
@@ -418,12 +417,20 @@ prepare_env() {
   fi
 
   local requested_edge="$EDGE_MODE"
+  local requested_billing="$BILLING_DOMAIN"
+  local requested_payram="$PAYRAM_DOMAIN"
+  local requested_email="$ACME_EMAIL"
+  local requested_token="$CLOUDFLARE_TUNNEL_TOKEN"
   load_env "$ENV_FILE"
   if [[ "$EDGE_MODE_EXPLICIT" -eq 1 ]]; then
     EDGE_MODE="$requested_edge"
   else
     EDGE_MODE="${EDGE_MODE:-direct}"
   fi
+  [[ -n "$requested_billing" ]] && BILLING_DOMAIN="$requested_billing"
+  [[ -n "$requested_payram" ]] && PAYRAM_DOMAIN="$requested_payram"
+  [[ -n "$requested_email" ]] && ACME_EMAIL="$requested_email"
+  [[ -n "$requested_token" ]] && CLOUDFLARE_TUNNEL_TOKEN="$requested_token"
 
   if [[ "$EDGE_MODE" == "tunnel" ]]; then
     if [[ -z "$BILLING_DOMAIN" ]]; then
