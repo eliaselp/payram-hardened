@@ -70,14 +70,14 @@ jobs:
       - name: Build billing image
         run: docker build -t payram-billing-ci ./billing
       - name: Trivy billing image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: payram-billing-ci
           format: table
           severity: "CRITICAL,HIGH"
           exit-code: "0"
       - name: Trivy PayRam image (report only)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: payramapp/payram@sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791
           format: table
