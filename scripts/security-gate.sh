@@ -58,6 +58,10 @@ INTERNAL_POSTGRES_PASSWORD="${INTERNAL_POSTGRES_PASSWORD:-}"
 [[ "${PAYRAM_OTP_THRESHOLD_USD:-}" == "0" ]] || fail "PAYRAM_OTP_THRESHOLD_USD debe ser 0 (OTP para todos)."
 [[ "${PAYRAM_DAILY_LIMIT_USD:-}" =~ ^[0-9]+$ ]] || fail "PAYRAM_DAILY_LIMIT_USD inválido."
 [[ "${PAYRAM_HOURLY_LIMIT_USD:-}" =~ ^[0-9]+$ ]] || fail "PAYRAM_HOURLY_LIMIT_USD inválido."
+ARCH="$(uname -m)"
+[[ "$ARCH" == "aarch64" && "${PAYRAM_IMAGE:-}" == *"sha256:1181cd5d"* ]] && fail "Imagen amd64 en host arm64."
+[[ "$ARCH" == "x86_64" && "${PAYRAM_IMAGE:-}" == *"sha256:a5866d0f"* ]] && fail "Imagen arm64 en host x86_64."
+
 [[ "${PAYRAM_DOMAIN:-}" == *.* ]] || fail "PAYRAM_DOMAIN inválido."
 [[ "${ACME_EMAIL:-}" == *@* ]] || fail "ACME_EMAIL inválido."
 if grep -Rqs 'docker.sock' "$APP_DIR/docker-compose.yml" "$APP_DIR/deploy" 2>/dev/null; then
