@@ -114,8 +114,13 @@ else
 fi
 
 load_env "$ENV_FILE"
-log "Construyendo billing..."
-"${COMPOSE[@]}" build billing
+if [[ "${BILLING_IMAGE:-}" == ghcr.io/* ]]; then
+  log "Billing desde GHCR; descargando (requiere docker login ghcr.io)..."
+  "${COMPOSE[@]}" pull billing
+else
+  log "Construyendo billing desde el repo..."
+  "${COMPOSE[@]}" build billing
+fi
 
 if ! grep -q '^ADMIN_PASSWORD_HASH=scrypt\$' "$ENV_FILE"; then
   [[ -n "$ADMIN_PASSWORD" ]] || { read -rsp "Contraseña admin: " ADMIN_PASSWORD; echo; }
@@ -150,7 +155,7 @@ for domain in "$BILLING_DOMAIN" "$PAYRAM_DOMAIN"; do
 done
 
 log "Arrancando stack QA..."
-"${COMPOSE[@]}" up -d
+"${COMPOSE[@]}" up -d --no-build
 
 for _ in $(seq 1 40); do
   if "${COMPOSE[@]}" exec -T billing python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)" >/dev/null 2>&1; then
