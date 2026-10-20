@@ -433,22 +433,10 @@ prepare_env() {
   [[ -n "$requested_token" ]] && CLOUDFLARE_TUNNEL_TOKEN="$requested_token"
 
   if [[ "$EDGE_MODE" == "tunnel" ]]; then
-    if [[ -z "$BILLING_DOMAIN" ]]; then
-      if [[ -t 0 ]]; then
-        read -rp "Dominio Billing [billing.accesscontrol.ink]: " BILLING_DOMAIN
-        BILLING_DOMAIN="${BILLING_DOMAIN:-billing.accesscontrol.ink}"
-      else
-        BILLING_DOMAIN="billing.accesscontrol.ink"
-      fi
-    fi
-    if [[ -z "$PAYRAM_DOMAIN" ]]; then
-      if [[ -t 0 ]]; then
-        read -rp "Dominio público de pago [payment.accesscontrol.ink]: " PAYRAM_DOMAIN
-        PAYRAM_DOMAIN="${PAYRAM_DOMAIN:-payment.accesscontrol.ink}"
-      else
-        PAYRAM_DOMAIN="payment.accesscontrol.ink"
-      fi
-    fi
+    # Constantes para este despliegue. Se pueden sobrescribir con --domain /
+    # --payram-domain o variables de entorno, pero no se preguntan.
+    BILLING_DOMAIN="${requested_billing:-billing.accesscontrol.ink}"
+    PAYRAM_DOMAIN="${requested_payram:-payment.accesscontrol.ink}"
     if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
       if [[ -t 0 ]]; then
         read -rsp "Cloudflare Tunnel token: " CLOUDFLARE_TUNNEL_TOKEN; echo

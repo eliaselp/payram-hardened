@@ -59,9 +59,9 @@ Para proteger la IP del VPS:
 sudo GHCR_TOKEN=... ./setup.sh --tunnel --accept-risk
 ```
 
-El script pide `BILLING_DOMAIN`, `PAYRAM_DOMAIN` y
-`CLOUDFLARE_TUNNEL_TOKEN`. No abre 80/443; Caddy escucha en localhost y
-cloudflared conecta a `http://caddy:80`. Ver
+El script usa `billing.accesscontrol.ink` y `payment.accesscontrol.ink` como
+constantes y solo pide el `CLOUDFLARE_TUNNEL_TOKEN`. No abre 80/443; Caddy
+escucha en localhost y cloudflared conecta a `http://caddy:80`. Ver
 [docs/CLOUDFLARE-TUNNEL.md](CLOUDFLARE-TUNNEL.md).
 
 ## Después del setup

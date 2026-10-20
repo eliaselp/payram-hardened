@@ -46,13 +46,15 @@ sudo GHCR_TOKEN=ghp_xxx ./setup.sh \
   --accept-risk
 ```
 
-El script pide por consola:
+El script usa constantes para tu caso:
 
 ```text
-Dominio Billing [billing.accesscontrol.ink]:
-Dominio público de pago [payment.accesscontrol.ink]:
-Cloudflare Tunnel token:
+BILLING_DOMAIN=billing.accesscontrol.ink
+PAYRAM_DOMAIN=payment.accesscontrol.ink
 ```
+
+Solo pide por consola el **Cloudflare Tunnel token**. Puedes sobrescribir los
+dominios con `--domain` / `--payram-domain` si algún día cambias de nombre.
 
 Puedes pasarlos sin interacción:
 
