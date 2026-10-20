@@ -33,6 +33,13 @@ REPO_URL="${REPO_URL:-https://github.com/eliaselp/payram-hardened.git}"
 REF="${REF:-master}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/payram-hardened}"
 SOURCE="${SOURCE:-ghcr}"                 # ghcr | dockerhub
+EDGE_MODE="${EDGE_MODE:-direct}"         # direct | tunnel
+EDGE_MODE_EXPLICIT=0
+CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
+CLOUDFLARED_IMAGE="${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.2@sha256:0e56c13c7058fcef9c4f0e7d83372f82330548dbf8f8b366f3d8b506526d93b2}"
+CADDYFILE="${CADDYFILE:-}"
+CADDY_BIND_IP="${CADDY_BIND_IP:-}"
+PROFILE_ARGS=()
 ASSUME_YES=0
 ACCEPT_RISK=0
 SKIP_OS=0
@@ -74,7 +81,9 @@ Uso: setup.sh [opciones]
 Obligatorio (o variables de entorno):
   --domain DOMINIO          Dominio de Billing (ej. billing.example.com)
   --payram-domain DOMINIO   Dominio de PayRam (ej. pay.example.com)
-  --email EMAIL             Email para Let's Encrypt
+  --email EMAIL             Email para Let's Encrypt (solo modo direct)
+  --tunnel                  Usa Cloudflare Tunnel; no abre 80/443
+  --direct                  Usa Caddy con Let's Encrypt (default)
   --accept-risk             Acepta el riesgo residual del core cerrado
 
 Opciones:
@@ -92,6 +101,7 @@ Opciones:
 
 Variables:
   GHCR_TOKEN                PAT con read:packages (si no hay docker login)
+  CLOUDFLARE_TUNNEL_TOKEN   Token del tunnel (o se pide por consola)
   ADMIN_PASSWORD            Contraseña admin de Billing (si no, se genera)
   PAYRAM_API_KEY            API key de PayRam (si ya la tienes)
   COMPANY_LEGAL_NAME, COMPANY_TAX_ID, COMPANY_EMAIL, COMPANY_ADDRESS
@@ -109,6 +119,8 @@ parse_args() {
       --ref) REF="${2:-}"; shift 2 ;;
       --source) SOURCE="${2:-}"; shift 2 ;;
       --ghcr-user) GHCR_USERNAME="${2:-}"; shift 2 ;;
+      --tunnel) EDGE_MODE="tunnel"; EDGE_MODE_EXPLICIT=1; shift ;;
+      --direct) EDGE_MODE="direct"; EDGE_MODE_EXPLICIT=1; shift ;;
       --yes) ASSUME_YES=1; shift ;;
       --accept-risk) ACCEPT_RISK=1; shift ;;
       --skip-os) SKIP_OS=1; shift ;;
@@ -120,6 +132,7 @@ parse_args() {
     esac
   done
   case "$SOURCE" in ghcr|dockerhub) ;; *) die "--source debe ser ghcr o dockerhub." ;; esac
+  case "$EDGE_MODE" in direct|tunnel) ;; *) die "--edge debe ser direct o tunnel." ;; esac
 }
 
 require_root() {
@@ -189,11 +202,13 @@ PY
 
 confirm() {
   [[ "$ASSUME_YES" -eq 1 ]] && return 0
+  local fw_note="se abrirán 80/tcp, 443/tcp y 443/udp"
+  [[ "$EDGE_MODE" == "tunnel" ]] && fw_note="solo SSH; Cloudflare Tunnel no abre 80/443"
   cat <<EOF
 
   Se modificará este VPS:
     - paquetes del sistema, Docker, UFW, fail2ban y unattended-upgrades
-    - se abrirán 80/tcp, 443/tcp y 443/udp
+    - firewall: $fw_note
     - se clonará el repo en $INSTALL_DIR
     - se crearán volúmenes Docker con datos y claves cifradas
     - se instalará el servicio systemd $COMPOSE_PROJECT
@@ -309,6 +324,12 @@ configure_firewall() {
   ((${#ssh_ports[@]})) || ssh_ports=(22)
   local p
   for p in "${ssh_ports[@]}"; do ufw allow "${p}/tcp" >/dev/null 2>&1 || true; done
+  state_set UFW_RULES_ADDED "0"
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    ufw --force enable >/dev/null
+    log "UFW activo; SSH: ${ssh_ports[*]}; Cloudflare Tunnel no requiere abrir 80/443."
+    return
+  fi
   ufw allow 80/tcp >/dev/null 2>&1 || true
   ufw allow 443/tcp >/dev/null 2>&1 || true
   ufw allow 443/udp >/dev/null 2>&1 || true
@@ -396,19 +417,62 @@ prepare_env() {
     chmod 0600 "$ENV_FILE"
   fi
 
+  local requested_edge="$EDGE_MODE"
   load_env "$ENV_FILE"
+  if [[ "$EDGE_MODE_EXPLICIT" -eq 1 ]]; then
+    EDGE_MODE="$requested_edge"
+  else
+    EDGE_MODE="${EDGE_MODE:-direct}"
+  fi
 
-  if [[ -z "$BILLING_DOMAIN" && -t 0 ]]; then read -rp "Dominio Billing: " BILLING_DOMAIN; fi
-  if [[ -z "$PAYRAM_DOMAIN" && -t 0 ]]; then read -rp "Dominio PayRam: " PAYRAM_DOMAIN; fi
-  if [[ -z "$ACME_EMAIL" && -t 0 ]]; then read -rp "Email Let's Encrypt: " ACME_EMAIL; fi
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    if [[ -z "$BILLING_DOMAIN" ]]; then
+      if [[ -t 0 ]]; then
+        read -rp "Dominio Billing [billing.accesscontrol.ink]: " BILLING_DOMAIN
+        BILLING_DOMAIN="${BILLING_DOMAIN:-billing.accesscontrol.ink}"
+      else
+        BILLING_DOMAIN="billing.accesscontrol.ink"
+      fi
+    fi
+    if [[ -z "$PAYRAM_DOMAIN" ]]; then
+      if [[ -t 0 ]]; then
+        read -rp "Dominio público de pago [payment.accesscontrol.ink]: " PAYRAM_DOMAIN
+        PAYRAM_DOMAIN="${PAYRAM_DOMAIN:-payment.accesscontrol.ink}"
+      else
+        PAYRAM_DOMAIN="payment.accesscontrol.ink"
+      fi
+    fi
+    if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
+      if [[ -t 0 ]]; then
+        read -rsp "Cloudflare Tunnel token: " CLOUDFLARE_TUNNEL_TOKEN; echo
+      else
+        die "Falta CLOUDFLARE_TUNNEL_TOKEN para --tunnel."
+      fi
+    fi
+    CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN//$'\r'/}"
+    CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN//$'\n'/}"
+    [[ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]] || die "CLOUDFLARE_TUNNEL_TOKEN vacío."
+    CADDYFILE="./deploy/qa/Caddyfile.tunnel"
+    CADDY_BIND_IP="127.0.0.1"
+  else
+    if [[ -z "$BILLING_DOMAIN" && -t 0 ]]; then read -rp "Dominio Billing: " BILLING_DOMAIN; fi
+    if [[ -z "$PAYRAM_DOMAIN" && -t 0 ]]; then read -rp "Dominio PayRam: " PAYRAM_DOMAIN; fi
+    if [[ -z "$ACME_EMAIL" && -t 0 ]]; then read -rp "Email Let's Encrypt: " ACME_EMAIL; fi
+    CADDYFILE="./deploy/qa/Caddyfile"
+    CADDY_BIND_IP="0.0.0.0"
+    CLOUDFLARE_TUNNEL_TOKEN=""
+  fi
+
   [[ -n "$BILLING_DOMAIN" ]] || die "Falta --domain / BILLING_DOMAIN."
   [[ -n "$PAYRAM_DOMAIN" ]] || die "Falta --payram-domain / PAYRAM_DOMAIN."
-  [[ -n "$ACME_EMAIL" ]] || die "Falta --email / ACME_EMAIL."
   [[ "$BILLING_DOMAIN" != "$PAYRAM_DOMAIN" ]] || die "Billing y PayRam no pueden usar el mismo dominio."
   [[ "$BILLING_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "Dominio Billing inválido."
   [[ "$PAYRAM_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || die "Dominio PayRam inválido."
-  [[ "$ACME_EMAIL" == *@*.* ]] || die "Email inválido."
-  COMPANY_EMAIL="${COMPANY_EMAIL:-$ACME_EMAIL}"
+  if [[ "$EDGE_MODE" == "direct" ]]; then
+    [[ -n "$ACME_EMAIL" ]] || die "Falta --email / ACME_EMAIL."
+    [[ "$ACME_EMAIL" == *@*.* ]] || die "Email inválido."
+  fi
+  COMPANY_EMAIL="${COMPANY_EMAIL:-${ACME_EMAIL:-facturacion@example.com}}"
 
   local -a updates=(
     "BILLING_DOMAIN=$BILLING_DOMAIN"
@@ -418,6 +482,11 @@ prepare_env() {
     "ALLOWED_HOSTS=$BILLING_DOMAIN,localhost,127.0.0.1"
     "PAYRAM_BASE_URL=https://$PAYRAM_DOMAIN"
     "PAYRAM_PUBLIC_URL=https://$PAYRAM_DOMAIN"
+    "EDGE_MODE=$EDGE_MODE"
+    "CADDYFILE=$CADDYFILE"
+    "CADDY_BIND_IP=$CADDY_BIND_IP"
+    "CLOUDFLARED_IMAGE=$CLOUDFLARED_IMAGE"
+    "CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN"
     "ALLOW_KNOWN_VULNERABLE_PAYRAM=true"
   )
 
@@ -467,6 +536,10 @@ prepare_env() {
   chmod 0600 "$ENV_FILE"
   load_env "$ENV_FILE"
   state_set ENV_FILE "$ENV_FILE"
+  state_set EDGE_MODE "$EDGE_MODE"
+  state_set CADDYFILE "$CADDYFILE"
+  state_set CADDY_BIND_IP "$CADDY_BIND_IP"
+  state_set CLOUDFLARED_IMAGE "$CLOUDFLARED_IMAGE"
   state_set PAYRAM_IMAGE "${PAYRAM_IMAGE:-}"
   state_set BILLING_IMAGE "${BILLING_IMAGE:-}"
   state_set POSTGRES_IMAGE "${POSTGRES_IMAGE:-}"
@@ -482,6 +555,10 @@ prepare_env() {
   done
   if [[ "$SOURCE" == "ghcr" ]]; then
     [[ "${BILLING_IMAGE:-}" == ghcr.io/*@sha256:* ]] || die "BILLING_IMAGE GHCR debe estar fijado por digest."
+  fi
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    [[ "${CLOUDFLARED_IMAGE:-}" == *"@sha256:"* ]] || die "CLOUDFLARED_IMAGE debe estar fijado por digest."
+    [[ -f "$INSTALL_DIR/deploy/qa/Caddyfile.tunnel" ]] || die "Falta deploy/qa/Caddyfile.tunnel."
   fi
   grep -q 'change-me' "$ENV_FILE" && die ".env.qa aún contiene placeholders 'change-me'."
   log "Secretos generados; .env.qa en 0600."
@@ -504,7 +581,7 @@ ghcr_login() {
 }
 
 compose_pull() {
-  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE")
+  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
   log "Descargando imágenes..."
   if [[ "$SOURCE" == "ghcr" ]]; then
     "${compose[@]}" pull
@@ -516,7 +593,7 @@ compose_pull() {
 }
 
 admin_hash() {
-  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE")
+  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
   if grep -q '^ADMIN_PASSWORD_HASH=scrypt[:$]' "$ENV_FILE"; then
     log "ADMIN_PASSWORD_HASH ya existe."
     return
@@ -539,7 +616,7 @@ admin_hash() {
 }
 
 validate_stack() {
-  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE")
+  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
   log "Validando compose..."
   "${compose[@]}" config --quiet
   log "Ejecutando security gate..."
@@ -548,6 +625,19 @@ validate_stack() {
 
 check_dns() {
   [[ "$SKIP_DNS" -eq 1 ]] && { warn "Se omite validación DNS."; return; }
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    warn "Cloudflare Tunnel: el DNS lo gestiona Cloudflare; no se compara con la IP del VPS."
+    local tunnel_domain tunnel_ip
+    for tunnel_domain in "$BILLING_DOMAIN" "$PAYRAM_DOMAIN"; do
+      tunnel_ip="$(getent ahostsv4 "$tunnel_domain" | awk 'NR==1{print $1}' || true)"
+      if [[ -z "$tunnel_ip" ]]; then
+        warn "DNS: $tunnel_domain aún no resuelve; crea el hostname público en Cloudflare."
+      else
+        log "DNS: $tunnel_domain -> $tunnel_ip (Cloudflare)"
+      fi
+    done
+    return
+  fi
   local server_ip=""
   server_ip="$(curl -4 -fsS --max-time 10 https://api.ipify.org 2>/dev/null || true)"
   if [[ -z "$server_ip" ]]; then
@@ -575,7 +665,7 @@ check_ports() {
 }
 
 start_stack() {
-  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE")
+  local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
   log "Arrancando stack..."
   "${compose[@]}" up -d --no-build
   local i healthy=0
@@ -629,7 +719,7 @@ EOF
     set_env_py "$ENV_FILE" "PAYRAM_API_KEY=$key"
     chmod 0600 "$ENV_FILE"
     load_env "$ENV_FILE"
-    local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE")
+    local -a compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE" --env-file "$ENV_FILE" "${PROFILE_ARGS[@]}")
     "${compose[@]}" up -d --no-build billing
     log "API key guardada; Billing reiniciado."
   else
@@ -639,6 +729,7 @@ EOF
 
 install_systemd() {
   DOCKER_BIN="${DOCKER_BIN:-$(command -v docker)}"
+  local profile_str="${PROFILE_ARGS[*]:-}"
   cat >/etc/systemd/system/payram-hardened.service <<EOF
 [Unit]
 Description=PayRam Hardened stack
@@ -650,8 +741,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa up -d --no-build
-ExecStop=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa down
+ExecStart=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str up -d --no-build
+ExecStop=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str down
 TimeoutStartSec=0
 
 [Install]
@@ -669,6 +760,7 @@ write_credentials() {
     echo "Fecha: $(date -u +%FT%TZ)"
     echo "Billing: https://$BILLING_DOMAIN"
     echo "PayRam:  https://$PAYRAM_DOMAIN"
+    echo "Edge:    $EDGE_MODE"
     echo "Admin usuario: $ADMIN_USERNAME"
     if [[ -n "${ADMIN_PASSWORD:-}" ]]; then
       echo "Admin password: $ADMIN_PASSWORD"
@@ -686,6 +778,17 @@ write_credentials() {
 }
 
 summary() {
+  local tunnel_note=""
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    tunnel_note="Cloudflare Tunnel:
+  - En Cloudflare Zero Trust, el tunnel debe tener estos public hostnames:
+      ${PAYRAM_DOMAIN}  -> http://caddy:80
+      ${BILLING_DOMAIN} -> http://caddy:80
+  - Caddy escucha solo en 127.0.0.1; cloudflared sale por 443/TCP.
+  - UFW no abre 80/443 en modo tunnel.
+  - Verifica que el tunnel esté Healthy en el dashboard.
+"
+  fi
   cat <<EOF
 
 ============================================================================
@@ -693,6 +796,7 @@ Stack desplegado
 ============================================================================
 Billing:  https://$BILLING_DOMAIN
 PayRam:   https://$PAYRAM_DOMAIN
+Edge:     $EDGE_MODE
 Repo:     $INSTALL_DIR
 Env:      $ENV_FILE
 Creds:    $CREDS_FILE
@@ -709,6 +813,7 @@ Siguiente:
   4) Completa COMPANY_* y SMTP/WhatsApp en .env.qa.
   5) Prueba con USD 1 antes de montos grandes.
 
+$tunnel_note
 Límites:
   - El core PayRam sigue siendo cerrado y con CVEs conocidos.
   - La custodia real depende de quién tenga xpub/seed y claves.
@@ -772,6 +877,11 @@ EOF
   clone_repo
   install -m 0755 "$INSTALL_DIR/uninstall.sh" /usr/local/sbin/payram-uninstall 2>/dev/null || warn "No se pudo copiar uninstall.sh a /usr/local/sbin."
   prepare_env
+  if [[ "$EDGE_MODE" == "tunnel" ]]; then
+    PROFILE_ARGS=(--profile tunnel)
+  else
+    PROFILE_ARGS=()
+  fi
   ghcr_login
   compose_pull
   admin_hash

@@ -48,6 +48,17 @@ jobs:
         run: ENV_FILE=.env.qa ./scripts/security-gate.sh
       - name: Compose config
         run: docker compose -f docker-compose.qa.yml --env-file .env.qa config --quiet
+      - name: Prepare tunnel env
+        run: |
+          cp .env.qa .env.qa.tunnel
+          sed -i 's/^EDGE_MODE=.*/EDGE_MODE=tunnel/' .env.qa.tunnel
+          sed -i 's|^CADDYFILE=.*|CADDYFILE=./deploy/qa/Caddyfile.tunnel|' .env.qa.tunnel
+          sed -i 's/^CADDY_BIND_IP=.*/CADDY_BIND_IP=127.0.0.1/' .env.qa.tunnel
+          sed -i 's/^CLOUDFLARE_TUNNEL_TOKEN=.*/CLOUDFLARE_TUNNEL_TOKEN=ci-dummy-token/' .env.qa.tunnel
+      - name: Tunnel security gate
+        run: ENV_FILE=.env.qa.tunnel ./scripts/security-gate.sh
+      - name: Tunnel compose config
+        run: docker compose -f docker-compose.qa.yml --env-file .env.qa.tunnel --profile tunnel config --quiet
 
   caddy-validate:
     runs-on: ubuntu-latest
@@ -62,6 +73,14 @@ jobs:
             -v "$PWD/deploy/qa/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.11.4-alpine \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Validate Caddyfile tunnel
+        run: |
+          docker run --rm \
+            -e BILLING_DOMAIN=billing.example.com \
+            -e PAYRAM_DOMAIN=pay.example.com \
+            -v "$PWD/deploy/qa/Caddyfile.tunnel:/etc/caddy/Caddyfile.tunnel:ro" \
+            caddy:2.11.4-alpine \
+            caddy validate --config /etc/caddy/Caddyfile.tunnel --adapter caddyfile
 
   image-scan:
     runs-on: ubuntu-latest

@@ -127,15 +127,15 @@ services:
       - billing_net
       - payram_net
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "${CADDY_BIND_IP:-0.0.0.0}:80:80"
+      - "${CADDY_BIND_IP:-0.0.0.0}:443:443"
+      - "${CADDY_BIND_IP:-0.0.0.0}:443:443/udp"
     environment:
       BILLING_DOMAIN: ${BILLING_DOMAIN:?BILLING_DOMAIN es obligatorio}
       PAYRAM_DOMAIN: ${PAYRAM_DOMAIN:?PAYRAM_DOMAIN es obligatorio}
-      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL es obligatorio}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
-      - ./deploy/qa/Caddyfile:/etc/caddy/Caddyfile:ro
+      - "${CADDYFILE:-./deploy/qa/Caddyfile}:/etc/caddy/Caddyfile:ro"
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -143,6 +143,25 @@ services:
         condition: service_healthy
       payram:
         condition: service_healthy
+    logging: *default-logging
+
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.2@sha256:0e56c13c7058fcef9c4f0e7d83372f82330548dbf8f8b366f3d8b506526d93b2}
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+      TUNNEL_TRANSPORT_PROTOCOL: http2
+    depends_on:
+      caddy:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - billing_net
     logging: *default-logging
 
 networks:

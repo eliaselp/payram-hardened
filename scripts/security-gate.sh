@@ -33,6 +33,17 @@ for var in PAYRAM_IMAGE POSTGRES_IMAGE CADDY_IMAGE; do
 done
 [[ "${PAYRAM_IMAGE:-}" == *"${PAYRAM_APPROVED_DIGEST:-__none__}"* ]] || fail "PAYRAM_IMAGE no coincide con PAYRAM_APPROVED_DIGEST."
 [[ -n "${PAYRAM_APPROVED_DIGEST:-}" ]] || fail "PAYRAM_APPROVED_DIGEST vacío."
+[[ -n "${BILLING_DOMAIN:-}" ]] || fail "BILLING_DOMAIN vacío."
+[[ -n "${PAYRAM_DOMAIN:-}" ]] || fail "PAYRAM_DOMAIN vacío."
+
+if [[ "${EDGE_MODE:-direct}" == "tunnel" ]]; then
+  [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]] || fail "CLOUDFLARE_TUNNEL_TOKEN vacío para EDGE_MODE=tunnel."
+  [[ "${CADDY_BIND_IP:-}" == "127.0.0.1" ]] || fail "En tunnel, CADDY_BIND_IP debe ser 127.0.0.1."
+  [[ "${CADDYFILE:-}" == *Caddyfile.tunnel ]] || fail "En tunnel, CADDYFILE debe ser Caddyfile.tunnel."
+  caddyfile_path="${CADDYFILE:-deploy/qa/Caddyfile.tunnel}"
+  [[ -f "$caddyfile_path" || -f "$APP_DIR/$caddyfile_path" ]] || fail "No existe $caddyfile_path."
+  [[ "${CLOUDFLARED_IMAGE:-}" == *"@sha256:"* ]] || fail "CLOUDFLARED_IMAGE debe estar fijado por digest."
+fi
 
 KNOWN=(
   "sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791"

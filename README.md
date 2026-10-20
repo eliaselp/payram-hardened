@@ -57,6 +57,14 @@ sudo GHCR_TOKEN=... ./setup.sh \
 
 El ciclo completo, límites y desinstalación están en [docs/MAX-CONTROL.md](docs/MAX-CONTROL.md).
 
+Para ocultar la IP con Cloudflare Tunnel:
+
+```bash
+sudo GHCR_TOKEN=... ./setup.sh --tunnel --accept-risk
+```
+
+Ver [docs/CLOUDFLARE-TUNNEL.md](docs/CLOUDFLARE-TUNNEL.md).
+
 ## Uso
 
 ```bash

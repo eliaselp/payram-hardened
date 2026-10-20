@@ -51,6 +51,19 @@ sudo -E GHCR_TOKEN=... ADMIN_PASSWORD='...' ./setup.sh \
 No uses `--accept-risk` si no aceptas que PayRam 3.9.0 contiene CVEs críticos
 conocidos y que el overlay solo mitiga rutas/configuración.
 
+## Cloudflare Tunnel
+
+Para proteger la IP del VPS:
+
+```bash
+sudo GHCR_TOKEN=... ./setup.sh --tunnel --accept-risk
+```
+
+El script pide `BILLING_DOMAIN`, `PAYRAM_DOMAIN` y
+`CLOUDFLARE_TUNNEL_TOKEN`. No abre 80/443; Caddy escucha en localhost y
+cloudflared conecta a `http://caddy:80`. Ver
+[docs/CLOUDFLARE-TUNNEL.md](CLOUDFLARE-TUNNEL.md).
+
 ## Después del setup
 
 1. Abre `https://PAYRAM_DOMAIN` y completa el onboarding:

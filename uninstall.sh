@@ -24,6 +24,10 @@ COMPOSE_PROJECT="payram-qa"
 COMPOSE_FILE="docker-compose.qa.yml"
 ENV_FILE=""
 CREDS_FILE="/root/payram-credentials.txt"
+EDGE_MODE=direct
+CADDYFILE=""
+CADDY_BIND_IP=""
+CLOUDFLARED_IMAGE=""
 DOCKER_INSTALLED=0
 DOCKERD_BACKUP=0
 DOCKERD_CONFIG=0
@@ -85,7 +89,7 @@ load_state() {
     while IFS='=' read -r key value; do
       [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
       case "$key" in
-        INSTALL_DIR|COMPOSE_PROJECT|COMPOSE_FILE|ENV_FILE|CREDS_FILE|DOCKER_INSTALLED|DOCKERD_BACKUP|DOCKERD_CONFIG|UFW_RULES_ADDED|UFW_WAS_ACTIVE|FAIL2BAN_JAIL|SWAP_CREATED|SYSCTL_ADDED|SYSTEMD_UNIT|GHCR_LOGIN|PAYRAM_IMAGE|BILLING_IMAGE|POSTGRES_IMAGE|CADDY_IMAGE)
+        INSTALL_DIR|COMPOSE_PROJECT|COMPOSE_FILE|ENV_FILE|CREDS_FILE|EDGE_MODE|CADDYFILE|CADDY_BIND_IP|CLOUDFLARED_IMAGE|DOCKER_INSTALLED|DOCKERD_BACKUP|DOCKERD_CONFIG|UFW_RULES_ADDED|UFW_WAS_ACTIVE|FAIL2BAN_JAIL|SWAP_CREATED|SYSCTL_ADDED|SYSTEMD_UNIT|GHCR_LOGIN|PAYRAM_IMAGE|BILLING_IMAGE|POSTGRES_IMAGE|CADDY_IMAGE)
           printf -v "$key" '%s' "$value"
           export "${key?}"
           ;;
@@ -124,7 +128,7 @@ confirm() {
     datos:       $([[ "$KEEP_DATA" -eq 1 ]] && echo "CONSERVAR" || echo "BORRAR volúmenes")
     imágenes:    $([[ "$KEEP_IMAGES" -eq 1 ]] && echo "CONSERVAR" || echo "BORRAR")
     systemd:     payram-hardened.service
-    firewall:    $([[ "$PURGE_FIREWALL" -eq 1 ]] && echo "desactivar UFW" || echo "quitar reglas 80/443")
+    firewall:    $([[ "$PURGE_FIREWALL" -eq 1 ]] && echo "desactivar UFW" || [[ "$EDGE_MODE" == "tunnel" ]] && echo "solo SSH (tunnel)" || echo "quitar reglas 80/443")
     sistema:     $([[ "$PURGE_SYSTEM" -eq 1 ]] && echo "PURGAR Docker/paquetes" || echo "conservar Docker")
 
   Escribe DELETE para continuar:
@@ -140,11 +144,14 @@ docker_available() {
 
 stop_stack() {
   docker_available || return 0
-  local compose=()
+  local -a compose=()
   if [[ -f "$INSTALL_DIR/$COMPOSE_FILE" ]]; then
     compose=(docker compose -f "$INSTALL_DIR/$COMPOSE_FILE")
     if [[ -f "$INSTALL_DIR/.env.qa" ]]; then
       compose+=(--env-file "$INSTALL_DIR/.env.qa")
+    fi
+    if [[ "$EDGE_MODE" == "tunnel" ]]; then
+      compose+=(--profile tunnel)
     fi
   fi
 
@@ -191,6 +198,7 @@ remove_images() {
   [[ -n "${BILLING_IMAGE:-}" ]] && images+=("$BILLING_IMAGE")
   [[ -n "${POSTGRES_IMAGE:-}" ]] && images+=("$POSTGRES_IMAGE")
   [[ -n "${CADDY_IMAGE:-}" ]] && images+=("$CADDY_IMAGE")
+  [[ -n "${CLOUDFLARED_IMAGE:-}" ]] && images+=("$CLOUDFLARED_IMAGE")
   images+=("payram-hardened:local" "payram-billing-qa:local")
   local img
   for img in "${images[@]}"; do

@@ -1,0 +1,42 @@
+# ============================================================================
+# Caddy en modo Cloudflare Tunnel
+# ============================================================================
+# Cloudflare termina TLS en el edge y cloudflared conecta a http://caddy:80.
+# Caddy NO publica 80/443 al host; solo escucha en localhost y en la red Docker.
+# En Cloudflare, los hostnames públicos deben apuntar a http://caddy:80.
+{
+  auto_https off
+  admin off
+}
+
+:80 {
+  @billing host {$BILLING_DOMAIN}
+  handle @billing {
+    encode zstd gzip
+    header {
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      -Server
+    }
+    reverse_proxy billing:8000 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  @payram host {$PAYRAM_DOMAIN}
+  handle @payram {
+    encode zstd gzip
+    header {
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      -Server
+    }
+    @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image* /api/v1/health
+    respond @blocked 404
+    reverse_proxy payram:80 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  respond 404
+}
