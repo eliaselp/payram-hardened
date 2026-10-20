@@ -589,6 +589,18 @@ start_stack() {
     sleep 5
   done
   [[ "$healthy" -eq 1 ]] || die "Billing no pasó el healthcheck en 5 minutos."
+
+  log "Esperando healthcheck de PayRam..."
+  local payram_healthy=0
+  for i in $(seq 1 60); do
+    if "${compose[@]}" exec -T payram wget -qO- http://127.0.0.1/api/v1/health >/dev/null 2>&1; then
+      log "PayRam saludable."
+      payram_healthy=1
+      break
+    fi
+    sleep 5
+  done
+  [[ "$payram_healthy" -eq 1 ]] || die "PayRam no pasó el healthcheck en 5 minutos."
   "${compose[@]}" ps
 }
 
