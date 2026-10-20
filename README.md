@@ -43,6 +43,20 @@ Overlay de seguridad para ejecutar **PayRam Core 3.9.0** (imagen propietaria, cl
 
 **Riesgo residual: alto.** No lo uses en mainnet con fondos reales sin aceptación explícita y, idealmente, sin un VPS separado y WAF.
 
+## Despliegue de máximo control
+
+Para preparar un VPS desde cero, desplegar con GHCR privado y poder revertir todo:
+
+```bash
+sudo GHCR_TOKEN=... ./setup.sh \
+  --domain billing.example.com \
+  --payram-domain pay.example.com \
+  --email admin@example.com \
+  --accept-risk
+```
+
+El ciclo completo, límites y desinstalación están en [docs/MAX-CONTROL.md](docs/MAX-CONTROL.md).
+
 ## Uso
 
 ```bash

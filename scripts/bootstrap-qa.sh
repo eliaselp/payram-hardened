@@ -122,7 +122,7 @@ else
   "${COMPOSE[@]}" build billing
 fi
 
-if ! grep -q '^ADMIN_PASSWORD_HASH=scrypt\$' "$ENV_FILE"; then
+if ! grep -q '^ADMIN_PASSWORD_HASH=scrypt[:$]' "$ENV_FILE"; then
   [[ -n "$ADMIN_PASSWORD" ]] || { read -rsp "Contraseña admin: " ADMIN_PASSWORD; echo; }
   log "Generando hash admin..."
   ADMIN_HASH="$(printf '%s' "$ADMIN_PASSWORD" | "${COMPOSE[@]}" run --rm --no-deps -T billing python -m app.cli hash-password --stdin)"
