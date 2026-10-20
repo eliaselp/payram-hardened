@@ -1,0 +1,67 @@
+name: publish-ghcr
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push PayRam hardened
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/$OWNER/payram-hardened:3.9.0"
+          docker build -f Dockerfile.ghcr -t "$IMAGE" .
+          docker push "$IMAGE"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | cut -d@ -f2)
+          echo "PAYRAM_DIGEST=$DIGEST" >> "$GITHUB_ENV"
+          echo "PAYRAM_REF=ghcr.io/$OWNER/payram-hardened" >> "$GITHUB_ENV"
+      - name: Build and push billing
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/$OWNER/payram-billing:1.0.0"
+          docker build -t "$IMAGE" ./billing
+          docker push "$IMAGE"
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | cut -d@ -f2)
+          echo "BILLING_DIGEST=$DIGEST" >> "$GITHUB_ENV"
+          echo "BILLING_REF=ghcr.io/$OWNER/payram-billing" >> "$GITHUB_ENV"
+      - name: Mirror Postgres and Caddy
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker pull postgres:16-alpine
+          docker tag postgres:16-alpine "ghcr.io/$OWNER/payram-postgres:16-alpine"
+          docker push "ghcr.io/$OWNER/payram-postgres:16-alpine"
+          PG_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "ghcr.io/$OWNER/payram-postgres:16-alpine" | cut -d@ -f2)
+          echo "PG_DIGEST=$PG_DIGEST" >> "$GITHUB_ENV"
+          docker pull caddy:2.11.4-alpine
+          docker tag caddy:2.11.4-alpine "ghcr.io/$OWNER/payram-caddy:2.11.4-alpine"
+          docker push "ghcr.io/$OWNER/payram-caddy:2.11.4-alpine"
+          CADDY_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "ghcr.io/$OWNER/payram-caddy:2.11.4-alpine" | cut -d@ -f2)
+          echo "CADDY_DIGEST=$CADDY_DIGEST" >> "$GITHUB_ENV"
+      - name: Summary
+        run: |
+          {
+            echo "## GHCR images"
+            echo ""
+            echo '```env'
+            echo "PAYRAM_IMAGE=$PAYRAM_REF@$PAYRAM_DIGEST"
+            echo "PAYRAM_APPROVED_DIGEST=$PAYRAM_DIGEST"
+            echo "PAYRAM_VENDOR_DIGEST=sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791"
+            echo "POSTGRES_IMAGE=ghcr.io/${{ github.repository_owner }}/payram-postgres@$PG_DIGEST"
+            echo "CADDY_IMAGE=ghcr.io/${{ github.repository_owner }}/payram-caddy@$CADDY_DIGEST"
+            echo "BILLING_IMAGE=$BILLING_REF@$BILLING_DIGEST"
+            echo '```'
+            echo ""
+            echo "Mantén los paquetes GHCR en privado."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,22 @@
+# Imagen endurecida para GHCR privado.
+# Incluye el overlay y, opcionalmente, upgrades Debian. NO convierte el core
+# cerrado en código fuente ni elimina los CVEs de Next/Go.
+FROM payramapp/payram@sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791
+
+USER root
+ARG UPGRADE_DEBIAN=false
+RUN if [ "$UPGRADE_DEBIAN" = "true" ]; then \
+      apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+COPY hardening /hardening
+RUN chmod +x /hardening/entrypoint.sh
+
+LABEL org.opencontainers.image.source="https://github.com/eliaselp/payram-hardened"
+LABEL org.opencontainers.image.description="PayRam hardened overlay for private QA"
+LABEL org.payram.vendor.digest="sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=10 \
+  CMD wget -qO- http://127.0.0.1/api/v1/health >/dev/null || exit 1
+
+ENTRYPOINT ["/hardening/entrypoint.sh"]

@@ -41,7 +41,9 @@ KNOWN=(
 )
 KNOWN_HIT=false
 for d in "${KNOWN[@]}"; do
-  [[ "${PAYRAM_IMAGE:-}" == *"$d"* ]] && KNOWN_HIT=true
+  if [[ "${PAYRAM_IMAGE:-}" == *"$d"* || "${PAYRAM_VENDOR_DIGEST:-}" == *"$d"* ]]; then
+    KNOWN_HIT=true
+  fi
 done
 if [[ "$KNOWN_HIT" == true ]]; then
   if [[ "${ALLOW_KNOWN_VULNERABLE_PAYRAM:-false}" == "true" ]]; then
@@ -62,8 +64,12 @@ INTERNAL_POSTGRES_PASSWORD="${INTERNAL_POSTGRES_PASSWORD:-}"
 [[ "${PAYRAM_DAILY_LIMIT_USD:-}" =~ ^[0-9]+$ ]] || fail "PAYRAM_DAILY_LIMIT_USD inválido."
 [[ "${PAYRAM_HOURLY_LIMIT_USD:-}" =~ ^[0-9]+$ ]] || fail "PAYRAM_HOURLY_LIMIT_USD inválido."
 ARCH="$(uname -m)"
-[[ "$ARCH" == "aarch64" && "${PAYRAM_IMAGE:-}" == *"sha256:1181cd5d"* ]] && fail "Imagen amd64 en host arm64."
-[[ "$ARCH" == "x86_64" && "${PAYRAM_IMAGE:-}" == *"sha256:a5866d0f"* ]] && fail "Imagen arm64 en host x86_64."
+if [[ "$ARCH" == "aarch64" ]]; then
+  [[ "${PAYRAM_IMAGE:-}" == *"sha256:1181cd5d"* || "${PAYRAM_VENDOR_DIGEST:-}" == *"sha256:1181cd5d"* ]] && fail "Core amd64 en host arm64. Publica una imagen arm64."
+fi
+if [[ "$ARCH" == "x86_64" ]]; then
+  [[ "${PAYRAM_IMAGE:-}" == *"sha256:a5866d0f"* || "${PAYRAM_VENDOR_DIGEST:-}" == *"sha256:a5866d0f"* ]] && fail "Core arm64 en host x86_64."
+fi
 
 [[ "${PAYRAM_DOMAIN:-}" == *.* ]] || fail "PAYRAM_DOMAIN inválido."
 [[ "${ACME_EMAIL:-}" == *@* ]] || fail "ACME_EMAIL inválido."

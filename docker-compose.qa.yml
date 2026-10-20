@@ -83,6 +83,7 @@ services:
     logging: *default-logging
 
   billing:
+    image: ${BILLING_IMAGE:-payram-billing-qa:local}
     build:
       context: ./billing
       dockerfile: Dockerfile
