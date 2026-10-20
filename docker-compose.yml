@@ -62,6 +62,13 @@ services:
       PAYRAM_OTP_THRESHOLD_USD: ${PAYRAM_OTP_THRESHOLD_USD:-0}
       PAYRAM_DAILY_LIMIT_USD: ${PAYRAM_DAILY_LIMIT_USD:-1000}
       PAYRAM_HOURLY_LIMIT_USD: ${PAYRAM_HOURLY_LIMIT_USD:-500}
+      PAYRAM_PATCH_FRONTEND: "true"
+      SENTRY_DSN: ""
+      SENTRY_ENVIRONMENT: ""
+      SENTRY_RELEASE: ""
+      METAMASK_ANALYTICS_ENDPOINT: ""
+      PAYRAM_ALLOWED_ORIGINS: https://${PAYRAM_DOMAIN}
+      LOG_LEVEL: warn
     volumes:
       - ./hardening:/hardening:ro
       - payram_data:/root/payram
@@ -70,10 +77,10 @@ services:
       - "80"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/api/v1/health >/dev/null || exit 1"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 120s
+      retries: 10
+      start_period: 240s
     logging: *default-logging
 
   caddy:

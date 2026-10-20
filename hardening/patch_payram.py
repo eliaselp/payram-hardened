@@ -122,23 +122,44 @@ def patch_supervisor(root: Path) -> None:
     }
     if not external_db:
         return
-    disabled = (
-        "[program:postgres]\n"
-        "command=/bin/true\n"
-        "autostart=false\n"
-        "autorestart=false\n\n"
-    )
-    if disabled.strip() in text:
+    redis_command = 'command=/usr/bin/redis-server /etc/redis/redis.conf --logfile ""'
+    if redis_command in text and "user=redis" not in text.split("[program:redis-server]", 1)[-1].split("[program:", 1)[0]:
+        text = text.replace(
+            "[program:redis-server]\n" + redis_command,
+            "[program:redis-server]\n" + redis_command + "\nuser=redis",
+            1,
+        )
+        write(path, text)
+
+    if "[program:postgres]" not in text:
         return
     new, count = re.subn(
         r"(?ms)^\[program:postgres\].*?(?=^\[program:)",
-        disabled,
+        "",
         text,
         count=1,
     )
     if count != 1:
         raise PatchError("supervisord.conf: no se encontró [program:postgres]")
     write(path, new)
+
+
+def patch_redis(root: Path) -> None:
+    path = root / "etc/redis/redis.conf"
+    if not path.is_file():
+        return
+    text = read(path)
+    if "daemonize yes" in text:
+        text = text.replace("daemonize yes", "daemonize no", 1)
+    elif "daemonize no" not in text:
+        raise PatchError("redis.conf: no se encontró daemonize")
+    if "pidfile /run/redis/redis-server.pid" in text:
+        text = text.replace(
+            "pidfile /run/redis/redis-server.pid",
+            "pidfile /var/lib/redis/redis-server.pid",
+            1,
+        )
+    write(path, text)
 
 
 def patch_config(root: Path) -> None:
@@ -211,6 +232,66 @@ def patch_nginx(root: Path) -> None:
         write(locations, text)
 
 
+def patch_frontend(root: Path) -> None:
+    """Elimina endpoints de desarrollo/telemetría del build de Next.js.
+
+    Son sustituciones de strings en assets ya compilados; no tocan la lógica
+    de negocio. Si después quedan endpoints prohibidos, falla cerrado.
+    """
+    if not env_bool("PAYRAM_PATCH_FRONTEND", True):
+        return
+    web = root / "web/.next"
+    if not web.is_dir():
+        raise PatchError("No se encontró /web/.next")
+
+    replacements = {
+        "https://develop.payments.betora.vip": "https://x.payram.com",
+        "https://preprod-wallet.resuefas.vip": "https://x.payram.com",
+        "https://payram-web-wallet-develop.vercel.app": "https://wallet.payram.com",
+        "https://payram-web-wallet-pre-prod.vercel.app/": "https://wallet.payram.com/",
+        "https://mm-sdk-analytics.api.cx.metamask.io/": "http://127.0.0.1:9/",
+        "curl -fsSL https://raw.githubusercontent.com/PayRam/payram-updates/main/setup_payram_updater.sh | sudo bash": "# updater disabled by hardening overlay",
+    }
+    forbidden = [
+        "develop.payments.betora.vip",
+        "preprod-wallet.resuefas.vip",
+        "payram-web-wallet-develop.vercel.app",
+        "payram-web-wallet-pre-prod.vercel.app",
+        "mm-sdk-analytics.api.cx.metamask.io",
+        "setup_payram_updater.sh",
+    ]
+
+    changed = 0
+    for path in web.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        new = text
+        for old, value in replacements.items():
+            new = new.replace(old, value)
+        if new != text:
+            path.write_text(new, encoding="utf-8")
+            changed += 1
+
+    remaining = []
+    for path in web.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for marker in forbidden:
+            if marker in text:
+                remaining.append(f"{path}:{marker}")
+    if remaining:
+        raise PatchError(f"Frontend con endpoints prohibidos tras el parche: {remaining[:5]}")
+    print(f"[hardening] frontend saneado ({changed} archivos modificados)", flush=True)
+
+
 def validate(root: Path) -> None:
     if root != Path("/"):
         return
@@ -234,8 +315,10 @@ def main() -> int:
     root = Path(os.getenv("PAYRAM_ROOT", "/")).resolve()
     patch_startup(root)
     patch_supervisor(root)
+    patch_redis(root)
     patch_config(root)
     patch_nginx(root)
+    patch_frontend(root)
 
     if root == Path("/"):
         # El binario arranca con un entrypoint propio; validar antes de exec.

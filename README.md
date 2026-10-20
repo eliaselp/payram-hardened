@@ -25,7 +25,14 @@ Overlay de seguridad para ejecutar **PayRam Core 3.9.0** (imagen propietaria, cl
    - `no-new-privileges`, `pids_limit`, healthcheck.
    - Caddy 2.11.4 con TLS, HSTS y bloqueo de rutas.
    - `payram_net` separada de `db_net` (interna).
-5. **Opcional**: `Dockerfile.hardened` actualiza paquetes Debian (no Next/Go).
+5. **CORS/telemetría/frontend**
+   - Define `PAYRAM_ALLOWED_ORIGINS` al dominio público.
+   - Desactiva `SENTRY_DSN` y el fallback de MetaMask analytics en el bundle.
+   - Reemplaza endpoints dev/preprod de Next por producción.
+   - Redacta la clave efímera que PayRam imprime en el log de arranque.
+6. **Redis**
+   - `user=redis`, `daemonize no`, PID file en `/var/lib/redis`.
+7. **Opcional**: `Dockerfile.hardened` actualiza paquetes Debian (no Next/Go).
 
 ## Qué NO hace
 
@@ -68,6 +75,14 @@ Si quieres actualizar paquetes Debian (opcional, puede romper compatibilidad del
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+## Ajustes de host
+
+```bash
+sudo ./scripts/host-tuning.sh
+```
+
+Activa `vm.overcommit_memory=1` (Redis) y `vm.swappiness=10`.
 
 ## Requisitos
 

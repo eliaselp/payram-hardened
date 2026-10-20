@@ -18,7 +18,7 @@
     -Server
   }
 
-  @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image*
+  @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image* /api/v1/health
   respond @blocked 404
 
   reverse_proxy payram:80
