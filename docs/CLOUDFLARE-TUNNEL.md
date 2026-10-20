@@ -126,7 +126,14 @@ apuntar a `http://caddy:80`.
 | `GHCR_TOKEN` | tú | Sí, para imágenes privadas |
 | `PAYRAM_API_KEY` | onboarding PayRam | Para cobrar |
 
-## 7. Seguridad
+## 7. mTLS para Billing
+
+El panel `/admin*`, `/login` y `/logout` puede exigir certificado de cliente.
+Sin certificado, Caddy responde 404. Los links públicos `/i/*` y el webhook
+siguen abiertos. Configuración completa en
+[BILLING-MTLS.md](BILLING-MTLS.md).
+
+## 8. Seguridad
 
 - No abras 80/443 en UFW para este VPS; cloudflared solo necesita salida.
 - No publiques el token; queda en `.env.qa` con `0600`.

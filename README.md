@@ -63,7 +63,7 @@ Para ocultar la IP con Cloudflare Tunnel:
 sudo GHCR_TOKEN=... ./setup.sh --tunnel --accept-risk
 ```
 
-Ver [docs/CLOUDFLARE-TUNNEL.md](docs/CLOUDFLARE-TUNNEL.md).
+Ver [docs/CLOUDFLARE-TUNNEL.md](docs/CLOUDFLARE-TUNNEL.md) y [docs/BILLING-MTLS.md](docs/BILLING-MTLS.md).
 
 ## Uso
 

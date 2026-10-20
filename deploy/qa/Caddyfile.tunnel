@@ -11,7 +11,19 @@
 
 :80 {
   @billing host {$BILLING_DOMAIN}
+  @billing_admin_no_mtls {
+    path / /admin* /login /logout
+    not header cf-cert-verified true
+  }
+  @billing_admin_revoked {
+    path / /admin* /login /logout
+    header cf-cert-revoked true
+  }
   handle @billing {
+    # mTLS solo para el panel/admin. Los links públicos /i/* y el webhook
+    # /webhooks/payram deben seguir abiertos para clientes y PayRam.
+    respond @billing_admin_no_mtls 404
+    respond @billing_admin_revoked 404
     encode zstd gzip
     header {
       X-Content-Type-Options "nosniff"
