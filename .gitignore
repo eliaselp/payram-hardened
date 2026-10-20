@@ -1,0 +1,7 @@
+.env
+*.log
+audit-output/
+data/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

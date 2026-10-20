@@ -1,0 +1,16 @@
+# Opcional: deriva una imagen con actualizaciones Debian.
+# No parchea el código Next.js/Go del vendor; solo paquetes del sistema.
+FROM payramapp/payram@sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791
+
+USER root
+RUN apt-get update \
+    && apt-get -y upgrade \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY hardening /hardening
+RUN chmod +x /hardening/entrypoint.sh
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+  CMD wget -qO- http://127.0.0.1/api/v1/health >/dev/null || exit 1
+
+ENTRYPOINT ["/hardening/entrypoint.sh"]

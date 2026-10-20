@@ -1,0 +1,6 @@
+services:
+  payram:
+    build:
+      context: .
+      dockerfile: Dockerfile.hardened
+    image: payram-hardened:3.9.0

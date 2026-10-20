@@ -1,0 +1,25 @@
+{
+  email {$ACME_EMAIL}
+  admin off
+}
+
+# API interna para un billing local que comparta payram_net.
+# No se publica al host; solo alcanza el puerto 80 de PayRam.
+:8080 {
+  reverse_proxy payram:80
+}
+
+{$PAYRAM_DOMAIN} {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    -Server
+  }
+
+  @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image*
+  respond @blocked 404
+
+  reverse_proxy payram:80
+}
