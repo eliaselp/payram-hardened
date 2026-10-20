@@ -25,17 +25,27 @@ Los paquetes deben quedar **privados** (Settings → Package visibility).
 
 ## 2. Configurar `.env.qa`
 
-Copia del resumen del workflow:
+Hay una plantilla ya generada con los digests del run del 2026-10-20:
+
+```bash
+cp deploy/ghcr.env.example .env.qa
+```
+
+Incluye:
 
 ```env
-PAYRAM_IMAGE=ghcr.io/eliaselp/payram-hardened@sha256:<digest>
-PAYRAM_APPROVED_DIGEST=sha256:<digest>
+PAYRAM_IMAGE=ghcr.io/eliaselp/payram-hardened@sha256:66432889d9cacf748755e017d12da5aca3cc30bf3c67f4384a6513f2bdfe684b
+PAYRAM_APPROVED_DIGEST=sha256:66432889d9cacf748755e017d12da5aca3cc30bf3c67f4384a6513f2bdfe684b
 PAYRAM_VENDOR_DIGEST=sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791
-POSTGRES_IMAGE=ghcr.io/eliaselp/payram-postgres@sha256:<digest>
-CADDY_IMAGE=ghcr.io/eliaselp/payram-caddy@sha256:<digest>
-BILLING_IMAGE=ghcr.io/eliaselp/payram-billing@sha256:<digest>
+POSTGRES_IMAGE=ghcr.io/eliaselp/payram-postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+CADDY_IMAGE=ghcr.io/eliaselp/payram-caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+BILLING_IMAGE=ghcr.io/eliaselp/payram-billing@sha256:37147394aea6c4ca61fd1a51834797e93c8722e590e3e51fc4077612ffdade4a
 ALLOW_KNOWN_VULNERABLE_PAYRAM=true
 ```
+
+Genera los secretos (`AES_KEY`, `SECRET_KEY`, passwords, `BILLING_API_KEY`) y el
+hash admin; no uses los placeholders. Si vuelves a ejecutar el workflow, los
+digests cambian: copia los nuevos del resumen.
 
 `PAYRAM_VENDOR_DIGEST` es el digest del core vendor dentro de la imagen; el
 security-gate lo usa para no “olvidar” los CVEs conocidos al usar una imagen
