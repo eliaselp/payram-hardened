@@ -5,6 +5,15 @@ Objetivo: que `/`, `/admin*`, `/login` y `/logout` de
 certificado válido. Sin certificado, Caddy responde **404**. Los links
 públicos `/i/*` y el webhook `/webhooks/payram` siguen abiertos.
 
+> **Estado por defecto: desactivado.** `setup.sh --tunnel` usa
+> `Caddyfile.tunnel` sin mTLS. Para habilitarlo:
+>
+> ```bash
+> sudo GHCR_TOKEN=... ./setup.sh --tunnel --billing-mtls --accept-risk
+> ```
+>
+> o pon `BILLING_MTLS_ENABLED=true` en `.env.qa` y reinicia Caddy.
+
 ## Por qué no se hace solo en Caddy
 
 Cloudflare Tunnel termina TLS en el edge. Caddy recibe HTTP desde

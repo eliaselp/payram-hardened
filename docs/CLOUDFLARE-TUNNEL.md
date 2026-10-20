@@ -128,9 +128,9 @@ apuntar a `http://caddy:80`.
 
 ## 7. mTLS para Billing
 
-El panel `/admin*`, `/login` y `/logout` puede exigir certificado de cliente.
-Sin certificado, Caddy responde 404. Los links públicos `/i/*` y el webhook
-siguen abiertos. Configuración completa en
+El panel `/admin*`, `/login` y `/logout` puede exigir certificado de cliente
+(desactivado por defecto; se activa con `--billing-mtls`). Sin certificado,
+Caddy responde 404. Los links públicos `/i/*` y el webhook siguen abiertos. Configuración completa en
 [BILLING-MTLS.md](BILLING-MTLS.md).
 
 ## 8. Seguridad

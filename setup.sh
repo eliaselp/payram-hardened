@@ -36,6 +36,8 @@ SOURCE="${SOURCE:-ghcr}"                 # ghcr | dockerhub
 EDGE_MODE="${EDGE_MODE:-direct}"         # direct | tunnel
 EDGE_MODE_EXPLICIT=0
 CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN:-}"
+BILLING_MTLS_ENABLED="${BILLING_MTLS_ENABLED:-false}"
+BILLING_MTLS_EXPLICIT=0
 CLOUDFLARED_IMAGE="${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.10.2@sha256:0e56c13c7058fcef9c4f0e7d83372f82330548dbf8f8b366f3d8b506526d93b2}"
 CADDYFILE="${CADDYFILE:-}"
 CADDY_BIND_IP="${CADDY_BIND_IP:-}"
@@ -83,6 +85,8 @@ Obligatorio (o variables de entorno):
   --payram-domain DOMINIO   Dominio de PayRam (ej. pay.example.com)
   --email EMAIL             Email para Let's Encrypt (solo modo direct)
   --tunnel                  Usa Cloudflare Tunnel; no abre 80/443
+  --billing-mtls            Exige certificado cliente en admin de Billing
+  --no-billing-mtls         Desactiva mTLS de Billing (default)
   --direct                  Usa Caddy con Let's Encrypt (default)
   --accept-risk             Acepta el riesgo residual del core cerrado
 
@@ -120,6 +124,8 @@ parse_args() {
       --source) SOURCE="${2:-}"; shift 2 ;;
       --ghcr-user) GHCR_USERNAME="${2:-}"; shift 2 ;;
       --tunnel) EDGE_MODE="tunnel"; EDGE_MODE_EXPLICIT=1; shift ;;
+      --billing-mtls) BILLING_MTLS_ENABLED="true"; BILLING_MTLS_EXPLICIT=1; shift ;;
+      --no-billing-mtls) BILLING_MTLS_ENABLED="false"; BILLING_MTLS_EXPLICIT=1; shift ;;
       --direct) EDGE_MODE="direct"; EDGE_MODE_EXPLICIT=1; shift ;;
       --yes) ASSUME_YES=1; shift ;;
       --accept-risk) ACCEPT_RISK=1; shift ;;
@@ -421,7 +427,11 @@ prepare_env() {
   local requested_payram="$PAYRAM_DOMAIN"
   local requested_email="$ACME_EMAIL"
   local requested_token="$CLOUDFLARE_TUNNEL_TOKEN"
+  local requested_mtls="$BILLING_MTLS_ENABLED"
   load_env "$ENV_FILE"
+  if [[ "$BILLING_MTLS_EXPLICIT" -eq 1 ]]; then
+    BILLING_MTLS_ENABLED="$requested_mtls"
+  fi
   if [[ "$EDGE_MODE_EXPLICIT" -eq 1 ]]; then
     EDGE_MODE="$requested_edge"
   else
@@ -447,7 +457,11 @@ prepare_env() {
     CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN//$'\r'/}"
     CLOUDFLARE_TUNNEL_TOKEN="${CLOUDFLARE_TUNNEL_TOKEN//$'\n'/}"
     [[ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]] || die "CLOUDFLARE_TUNNEL_TOKEN vacío."
-    CADDYFILE="./deploy/qa/Caddyfile.tunnel"
+    if [[ "$BILLING_MTLS_ENABLED" == "true" ]]; then
+      CADDYFILE="./deploy/qa/Caddyfile.tunnel.mtls"
+    else
+      CADDYFILE="./deploy/qa/Caddyfile.tunnel"
+    fi
     CADDY_BIND_IP="127.0.0.1"
   else
     if [[ -z "$BILLING_DOMAIN" && -t 0 ]]; then read -rp "Dominio Billing: " BILLING_DOMAIN; fi
@@ -456,6 +470,7 @@ prepare_env() {
     CADDYFILE="./deploy/qa/Caddyfile"
     CADDY_BIND_IP="0.0.0.0"
     CLOUDFLARE_TUNNEL_TOKEN=""
+    BILLING_MTLS_ENABLED="false"
   fi
 
   [[ -n "$BILLING_DOMAIN" ]] || die "Falta --domain / BILLING_DOMAIN."
@@ -480,6 +495,7 @@ prepare_env() {
     "EDGE_MODE=$EDGE_MODE"
     "CADDYFILE=$CADDYFILE"
     "CADDY_BIND_IP=$CADDY_BIND_IP"
+    "BILLING_MTLS_ENABLED=$BILLING_MTLS_ENABLED"
     "CLOUDFLARED_IMAGE=$CLOUDFLARED_IMAGE"
     "CLOUDFLARE_TUNNEL_TOKEN=$CLOUDFLARE_TUNNEL_TOKEN"
     "ALLOW_KNOWN_VULNERABLE_PAYRAM=true"
@@ -554,6 +570,7 @@ prepare_env() {
   if [[ "$EDGE_MODE" == "tunnel" ]]; then
     [[ "${CLOUDFLARED_IMAGE:-}" == *"@sha256:"* ]] || die "CLOUDFLARED_IMAGE debe estar fijado por digest."
     [[ -f "$INSTALL_DIR/deploy/qa/Caddyfile.tunnel" ]] || die "Falta deploy/qa/Caddyfile.tunnel."
+    [[ -f "$INSTALL_DIR/deploy/qa/Caddyfile.tunnel.mtls" ]] || die "Falta deploy/qa/Caddyfile.tunnel.mtls."
   fi
   grep -q 'change-me' "$ENV_FILE" && die ".env.qa aún contiene placeholders 'change-me'."
   log "Secretos generados; .env.qa en 0600."
@@ -568,7 +585,13 @@ ghcr_login() {
     state_set GHCR_LOGIN "1"
   elif [[ -t 0 ]]; then
     warn "Login GHCR necesario para bajar imágenes privadas."
-    docker login ghcr.io -u "$GHCR_USERNAME"
+    local token
+    read -rsp "GHCR token (read:packages) [Enter para login interactivo]: " token; echo
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+    else
+      docker login ghcr.io -u "$GHCR_USERNAME"
+    fi
     state_set GHCR_LOGIN "1"
   else
     warn "Sin GHCR_TOKEN y sin TTY; se usarán credenciales existentes de Docker."

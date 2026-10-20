@@ -1,0 +1,54 @@
+# ============================================================================
+# Caddy en modo Cloudflare Tunnel
+# ============================================================================
+# Cloudflare termina TLS en el edge y cloudflared conecta a http://caddy:80.
+# Caddy NO publica 80/443 al host; solo escucha en localhost y en la red Docker.
+# En Cloudflare, los hostnames públicos deben apuntar a http://caddy:80.
+{
+  auto_https off
+  admin off
+}
+
+:80 {
+  @billing host {$BILLING_DOMAIN}
+  @billing_admin_no_mtls {
+    path / /admin* /login /logout
+    not header cf-cert-verified true
+  }
+  @billing_admin_revoked {
+    path / /admin* /login /logout
+    header cf-cert-revoked true
+  }
+  handle @billing {
+    # mTLS solo para el panel/admin. Los links públicos /i/* y el webhook
+    # /webhooks/payram deben seguir abiertos para clientes y PayRam.
+    respond @billing_admin_no_mtls 404
+    respond @billing_admin_revoked 404
+    encode zstd gzip
+    header {
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      -Server
+    }
+    reverse_proxy billing:8000 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  @payram host {$PAYRAM_DOMAIN}
+  handle @payram {
+    encode zstd gzip
+    header {
+      X-Content-Type-Options "nosniff"
+      Referrer-Policy "strict-origin-when-cross-origin"
+      -Server
+    }
+    @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image* /api/v1/health
+    respond @blocked 404
+    reverse_proxy payram:80 {
+      header_up X-Forwarded-Proto https
+    }
+  }
+
+  respond 404
+}

@@ -39,10 +39,14 @@ done
 if [[ "${EDGE_MODE:-direct}" == "tunnel" ]]; then
   [[ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]] || fail "CLOUDFLARE_TUNNEL_TOKEN vacío para EDGE_MODE=tunnel."
   [[ "${CADDY_BIND_IP:-}" == "127.0.0.1" ]] || fail "En tunnel, CADDY_BIND_IP debe ser 127.0.0.1."
-  [[ "${CADDYFILE:-}" == *Caddyfile.tunnel ]] || fail "En tunnel, CADDYFILE debe ser Caddyfile.tunnel."
+  [[ "${CADDYFILE:-}" == *Caddyfile.tunnel* ]] || fail "En tunnel, CADDYFILE debe ser Caddyfile.tunnel(.mtls)."
   caddyfile_path="${CADDYFILE:-deploy/qa/Caddyfile.tunnel}"
   [[ -f "$caddyfile_path" || -f "$APP_DIR/$caddyfile_path" ]] || fail "No existe $caddyfile_path."
   [[ "${CLOUDFLARED_IMAGE:-}" == *"@sha256:"* ]] || fail "CLOUDFLARED_IMAGE debe estar fijado por digest."
+  if [[ "${BILLING_MTLS_ENABLED:-false}" == "true" ]]; then
+    [[ "${CADDYFILE:-}" == *Caddyfile.tunnel.mtls ]] || fail "mTLS activo requiere CADDYFILE=Caddyfile.tunnel.mtls."
+    [[ -f "$APP_DIR/deploy/qa/Caddyfile.tunnel.mtls" ]] || fail "Falta Caddyfile.tunnel.mtls."
+  fi
 fi
 
 KNOWN=(
