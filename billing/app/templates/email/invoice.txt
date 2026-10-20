@@ -1,0 +1,21 @@
+{{ settings.company_name }}
+Factura {{ invoice.number }}
+
+Hola {{ invoice.customer_name }},
+
+Te enviamos la factura {{ invoice.number }} por un total de USD {{ "%.2f"|format(invoice.total_cents / 100) }}.
+
+Vence: {{ invoice.due_date.strftime('%d/%m/%Y') if invoice.due_date else '—' }}
+
+Paga aquí:
+{{ pay_url }}
+
+Métodos de pago:
+{{ settings.payment_methods_note }}
+
+También adjuntamos la factura en PDF.
+
+{{ settings.company_legal_name }}
+{{ settings.company_address }}
+{{ settings.company_email }}
+{{ settings.invoice_footer_note }}

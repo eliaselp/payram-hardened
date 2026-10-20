@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Factura {{ invoice.number }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Factura</div>
+    <h1>{{ invoice.number }}</h1>
+    <p>{{ invoice.customer_name }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="/i/{{ invoice.public_token }}/pdf">PDF</a>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <section class="card invoice-preview">
+    <div class="invoice-top">
+      <div>
+        <div class="invoice-brand">{{ settings.company_legal_name }}<small>{{ settings.company_address }}<br>ID fiscal: {{ settings.company_tax_id }}</small></div>
+      </div>
+      <div class="invoice-meta">
+        <div class="number">FACTURA {{ invoice.number }}</div>
+        <div class="amount">{{ money(invoice.total_cents) }}</div>
+        <div class="mt-1"><span class="badge {{ status_class(invoice.status) }}">{{ status_label(invoice.status) }}</span></div>
+      </div>
+    </div>
+
+    <div class="invoice-parties">
+      <div>
+        <div class="party-label">Facturar a</div>
+        <div class="party-name">{{ invoice.customer_name }}</div>
+        <div class="party-line">{{ invoice.customer_email }}</div>
+      </div>
+      <div>
+        <div class="party-label">Fechas</div>
+        <div class="party-line">Emitida: {{ format_date(invoice.issue_date) }}</div>
+        <div class="party-line">Vence: {{ format_date(invoice.due_date) }}</div>
+      </div>
+    </div>
+
+    <div class="items-list">
+      <div class="item-row item-head">
+        <div>Descripción</div><div class="right">Cant.</div><div class="right">Precio</div><div class="right">Total</div>
+      </div>
+      {% for item in invoice.items %}
+      <div class="item-row">
+        <div>{{ item.description }}</div>
+        <div class="right">{{ quantity(item.quantity) }}</div>
+        <div class="right">{{ money(item.unit_price_cents) }}</div>
+        <div class="right">{{ money(item.line_total_cents) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="totals">
+      <div class="line"><span>Subtotal</span><span>{{ money(invoice.subtotal_cents) }}</span></div>
+      <div class="line"><span>Impuesto ({{ percent(invoice.tax_rate_bps) }})</span><span>{{ money(invoice.tax_cents) }}</span></div>
+      <div class="line total"><span>Total</span><span>{{ money(invoice.total_cents) }}</span></div>
+    </div>
+
+    {% if invoice.notes %}<div class="invoice-notes">{{ invoice.notes }}</div>{% endif %}
+  </section>
+
+  <aside class="pay-panel">
+    <div class="card card-pad">
+      <div class="stat-label">Total a pagar</div>
+      <div class="pay-amount">{{ money(invoice.total_cents) }}</div>
+      <div class="pay-status"><span class="badge {{ status_class(invoice.status) }}">{{ status_label(invoice.status) }}</span></div>
+
+      {% if payment_error %}
+      <div class="alert error">{{ payment_error }}</div>
+      {% endif %}
+
+      {% if invoice.status in ['paid', 'overpaid'] %}
+        <div class="alert success mb-0">
+          <strong>Pago recibido</strong><br>
+          {{ money(invoice.paid_amount_cents) }}{% if invoice.paid_at %} · {{ format_datetime(invoice.paid_at) }}{% endif %}
+          {% if invoice.paid_tx_hash %}<div class="tx-hash mt-1">{{ invoice.paid_tx_hash }}</div>{% endif %}
+        </div>
+      {% elif invoice.status == 'partially_paid' %}
+        <div class="alert warning">
+          Recibido: <strong>{{ money(invoice.paid_amount_cents) }}</strong><br>
+          Pendiente: <strong>{{ money(invoice.total_cents - invoice.paid_amount_cents) }}</strong>
+        </div>
+        <a class="btn btn-primary btn-block" href="/i/{{ invoice.public_token }}/pay">Pagar el saldo</a>
+      {% elif invoice.status == 'cancelled' %}
+        <div class="alert error mb-0">Esta factura fue anulada.</div>
+      {% elif invoice.status == 'expired' %}
+        <div class="alert warning mb-0">El link de pago expiró. Contacta al emisor para reactivarlo.</div>
+      {% else %}
+        <a class="btn btn-primary btn-block" href="/i/{{ invoice.public_token }}/pay">Pagar ahora</a>
+        <div class="public-methods">{{ settings.payment_methods_note }}</div>
+      {% endif %}
+
+      <div class="divider"></div>
+      <div class="meta-list">
+        <div class="meta-row"><span class="k">Factura</span><span class="v mono">{{ invoice.number }}</span></div>
+        <div class="meta-row"><span class="k">Emitida</span><span class="v">{{ format_date(invoice.issue_date) }}</span></div>
+        <div class="meta-row"><span class="k">Vence</span><span class="v">{{ format_date(invoice.due_date) }}</span></div>
+        <div class="meta-row"><span class="k">Liquidación</span><span class="v">USDC · Base</span></div>
+      </div>
+      <p class="small muted mt-2 mb-0">Pago procesado por PayRam. Los pagos on-chain son finales. Si necesitas ayuda, escribe a {{ settings.company_email }}.</p>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Entrar · {{ settings.company_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body class="auth-page">
+  <main class="card auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">PB</span>
+      <div>
+        <strong>{{ settings.company_name }}</strong>
+        <div class="muted small">Facturación y links de pago</div>
+      </div>
+    </div>
+    <h1 class="auth-title">Panel de facturación</h1>
+    <p class="auth-sub">Accede para crear facturas y enviar links de pago.</p>
+
+    {% for flash in flashes %}
+      <div class="alert {{ flash.category }}">{{ flash.message }}</div>
+    {% endfor %}
+
+    <form method="post" action="/login">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="stack">
+        <div class="field">
+          <label for="username">Usuario</label>
+          <input class="input" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+      </div>
+    </form>
+    <div class="auth-footer">Conexión cifrada · Acceso restringido</div>
+  </main>
+</body>
+</html>

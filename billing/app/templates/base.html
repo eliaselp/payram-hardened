@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Facturación{% endblock %} · {{ settings.company_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Ctext x='32' y='42' font-family='Arial' font-size='26' font-weight='bold' fill='white' text-anchor='middle'%3EPB%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="/admin">
+        <span class="brand-mark">PB</span>
+        <span>{{ settings.company_name }}<small>Facturación y links de pago</small></span>
+      </a>
+      {% if request.session.get('admin') %}
+      <nav class="nav">
+        <a href="/admin" class="{% if request.url.path == '/admin' %}active{% endif %}">Facturas</a>
+        <a href="/admin/invoices/new" class="{% if request.url.path == '/admin/invoices/new' %}active{% endif %}">Nueva factura</a>
+        <a href="/admin/settings" class="{% if request.url.path == '/admin/settings' %}active{% endif %}">Estado</a>
+      </nav>
+      <div class="topbar-actions">
+        <span class="topbar-user">{{ request.session.get('admin_user', 'admin') }}</span>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="btn btn-sm btn-ghost">Salir</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="container">
+      {% for flash in flashes %}
+        <div class="alert {{ flash.category }}">{{ flash.message }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', path='app.js') }}" defer></script>
+</body>
+</html>

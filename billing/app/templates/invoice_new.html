@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Nueva factura{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Facturación</div>
+    <h1>Nueva factura</h1>
+    <p>El link de pago se genera automáticamente al guardar.</p>
+  </div>
+  <a class="btn" href="/admin">Volver</a>
+</div>
+
+{% if error %}
+<div class="alert error">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/admin/invoices" class="card" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-section">
+    <h3>Cliente</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="customer_name">Nombre o razón social</label>
+        <input class="input" id="customer_name" name="customer_name" value="{{ form.get('customer_name', '') }}" required maxlength="200">
+      </div>
+      <div class="field">
+        <label for="customer_email">Correo</label>
+        <input class="input" id="customer_email" name="customer_email" type="email" value="{{ form.get('customer_email', '') }}" required maxlength="320">
+        <span class="hint">Se usa para enviar la factura y asociar el pago en PayRam.</span>
+      </div>
+      <div class="field">
+        <label for="customer_phone">WhatsApp / teléfono</label>
+        <input class="input" id="customer_phone" name="customer_phone" value="{{ form.get('customer_phone', '') }}" placeholder="+53 5555 5555" maxlength="40">
+        <span class="hint">Incluye el código de país para generar el enlace wa.me.</span>
+      </div>
+      <div class="field">
+        <label for="description">Concepto general</label>
+        <input class="input" id="description" name="description" value="{{ form.get('description', '') }}" placeholder="Servicios profesionales, desarrollo, consultoría…" maxlength="500">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3>Fechas</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="issue_date">Fecha de emisión</label>
+        <input class="input" id="issue_date" name="issue_date" type="date" value="{{ form.get('issue_date', today) }}" required>
+      </div>
+      <div class="field">
+        <label for="due_date">Fecha de vencimiento</label>
+        <input class="input" id="due_date" name="due_date" type="date" value="{{ form.get('due_date', '') }}">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h3>Líneas</h3>
+    <p class="section-help">Describe cada servicio o producto. El total se calcula automáticamente.</p>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Descripción</th>
+          <th class="qty">Cantidad</th>
+          <th class="price">Precio unitario (USD)</th>
+          <th class="remove"></th>
+        </tr>
+      </thead>
+      <tbody id="items-body" data-next-index="{{ items|length }}">
+        {% for item in items %}
+        <tr>
+          <td><input class="input" name="item_description_{{ loop.index0 }}" value="{{ item.description }}" placeholder="Descripción del servicio"></td>
+          <td><input class="input" name="item_quantity_{{ loop.index0 }}" value="{{ item.quantity }}" inputmode="decimal"></td>
+          <td><input class="input" name="item_price_{{ loop.index0 }}" value="{{ item.unit_price }}" inputmode="decimal" placeholder="0.00"></td>
+          <td><button class="item-remove" type="button" title="Eliminar línea" aria-label="Eliminar línea">×</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="items-actions">
+      <button class="btn btn-sm" type="button" id="add-item">+ Añadir línea</button>
+    </div>
+
+    <template id="item-template">
+      <tr>
+        <td><input class="input" name="item_description___INDEX__" placeholder="Descripción del servicio"></td>
+        <td><input class="input" name="item_quantity___INDEX__" value="1" inputmode="decimal"></td>
+        <td><input class="input" name="item_price___INDEX__" inputmode="decimal" placeholder="0.00"></td>
+        <td><button class="item-remove" type="button" title="Eliminar línea" aria-label="Eliminar línea">×</button></td>
+      </tr>
+    </template>
+  </div>
+
+  <div class="form-section">
+    <h3>Impuestos y notas</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label for="tax_rate">Impuesto (%)</label>
+        <input class="input" id="tax_rate" name="tax_rate" value="{{ form.get('tax_rate', '0.00') }}" inputmode="decimal">
+        <span class="hint">0 si no aplica. Ejemplo: 16 para IVA 16%.</span>
+      </div>
+      <div class="field full">
+        <label for="notes">Notas para el cliente</label>
+        <textarea class="textarea" id="notes" name="notes" maxlength="4000">{{ form.get('notes', '') }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <label class="checkbox">
+      <input type="checkbox" name="send_email" {% if form.get('send_email') %}checked{% endif %}>
+      Enviar la factura por correo al guardar (requiere SMTP configurado)
+    </label>
+  </div>
+
+  <div class="card-footer flex-between">
+    <span class="small muted">El pago se liquida en USDC en Base según las rutas habilitadas en PayRam.</span>
+    <div class="btn-row">
+      <a class="btn" href="/admin">Cancelar</a>
+      <button class="btn btn-primary" type="submit">Crear factura y link</button>
+    </div>
+  </div>
+</form>
+
+{% endblock %}

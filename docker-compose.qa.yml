@@ -1,0 +1,159 @@
+name: payram-qa
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE es obligatorio}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - db_net
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-payram}
+      POSTGRES_USER: ${POSTGRES_USER:-payram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  payram:
+    image: ${PAYRAM_IMAGE:?PAYRAM_IMAGE es obligatorio}
+    restart: unless-stopped
+    entrypoint: ["/hardening/entrypoint.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 1024
+    networks:
+      - payram_net
+      - db_net
+    extra_hosts:
+      - "${BILLING_DOMAIN}:host-gateway"
+    environment:
+      AES_KEY: ${AES_KEY:?AES_KEY es obligatorio}
+      SSL_CERT_PATH: ""
+      BLOCKCHAIN_NETWORK_TYPE: ${PAYRAM_NETWORK_TYPE:-mainnet}
+      SERVER: ${PAYRAM_SERVER:-PRODUCTION}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DATABASE: ${POSTGRES_DB:-payram}
+      POSTGRES_USERNAME: ${POSTGRES_USER:-payram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatorio}
+      POSTGRES_SSLMODE: prefer
+      PAYMENTS_APP_SERVER_URL: "https://x.payram.com"
+      PAYRAM_HARDENING_ENABLED: "true"
+      INTERNAL_POSTGRES_PASSWORD: ${INTERNAL_POSTGRES_PASSWORD:?INTERNAL_POSTGRES_PASSWORD es obligatorio}
+      PAYRAM_AUTO_APPROVE: ${PAYRAM_AUTO_APPROVE:-false}
+      PAYRAM_AUTO_APPROVE_USD: ${PAYRAM_AUTO_APPROVE_USD:-0}
+      PAYRAM_OTP_THRESHOLD_USD: ${PAYRAM_OTP_THRESHOLD_USD:-0}
+      PAYRAM_DAILY_LIMIT_USD: ${PAYRAM_DAILY_LIMIT_USD:-1000}
+      PAYRAM_HOURLY_LIMIT_USD: ${PAYRAM_HOURLY_LIMIT_USD:-500}
+      PAYRAM_PATCH_FRONTEND: "true"
+      SENTRY_DSN: ""
+      SENTRY_ENVIRONMENT: ""
+      SENTRY_RELEASE: ""
+      METAMASK_ANALYTICS_ENDPOINT: ""
+      PAYRAM_ALLOWED_ORIGINS: https://${PAYRAM_DOMAIN:?PAYRAM_DOMAIN es obligatorio}
+      LOG_LEVEL: warn
+    volumes:
+      - ./hardening:/hardening:ro
+      - payram_data:/root/payram
+      - payram_logs:/var/log
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/api/v1/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 240s
+    logging: *default-logging
+
+  billing:
+    build:
+      context: ./billing
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: .env.qa
+        format: raw
+    environment:
+      DATABASE_URL: sqlite:////data/billing.db
+      AUTO_CREATE_SCHEMA: "false"
+      WEB_WORKERS: "1"
+      PAYRAM_BASE_URL: http://caddy:8080
+    volumes:
+      - billing_data:/data
+    expose:
+      - "8000"
+    networks:
+      - billing_net
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    logging: *default-logging
+
+  caddy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE es obligatorio}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - billing_net
+      - payram_net
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      BILLING_DOMAIN: ${BILLING_DOMAIN:?BILLING_DOMAIN es obligatorio}
+      PAYRAM_DOMAIN: ${PAYRAM_DOMAIN:?PAYRAM_DOMAIN es obligatorio}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL es obligatorio}
+    volumes:
+      - ./deploy/qa/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      billing:
+        condition: service_healthy
+      payram:
+        condition: service_healthy
+    logging: *default-logging
+
+networks:
+  billing_net:
+  payram_net:
+  db_net:
+    internal: true
+
+volumes:
+  pg_data:
+  payram_data:
+  payram_logs:
+  billing_data:
+  caddy_data:
+  caddy_config:

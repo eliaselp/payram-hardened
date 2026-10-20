@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Estado del sistema{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Operación</div>
+    <h1>Estado del sistema</h1>
+    <p>Configuración activa, conexión con PayRam y puntos pendientes.</p>
+  </div>
+  <a class="btn" href="/admin/settings">Actualizar</a>
+</div>
+
+{% if warnings %}
+<div class="card card-pad mb-2">
+  <h2 class="mb-1">Pendientes de configuración</h2>
+  <ul class="check-list">
+    {% for warning in warnings %}
+    <li><span class="warn">!</span><span>{{ warning }}</span></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="detail-grid">
+  <div class="stack">
+    <div class="card">
+      <div class="card-header"><h2>PayRam</h2><span class="badge {{ 'success' if payram_ok else 'danger' }}">{{ 'Conectado' if payram_ok else 'Sin conexión' }}</span></div>
+      <div class="card-body">
+        {% if payram_ok %}
+          <p class="small muted">La API respondió correctamente. {{ payram_pairs }} pares red/moneda disponibles en el ticker.</p>
+        {% else %}
+          <div class="alert error">{{ payram_error or 'No se pudo consultar PayRam.' }}</div>
+        {% endif %}
+        <dl class="kv">
+          <dt>API interna</dt><dd class="mono">{{ settings.payram_base_url }}</dd>
+          <dt>URL pública de checkout</dt><dd class="mono">{{ settings.payram_public_base }}</dd>
+          <dt>API key</dt><dd class="mono">{{ masked_key }}</dd>
+          <dt>Webhook</dt><dd class="mono">{{ webhook_url }}</dd>
+          <dt>Firma requerida</dt><dd>{{ 'Sí' if settings.payram_webhook_require_signature else 'No (solo legacy)' }}</dd>
+          <dt>Perfil de liquidación</dt><dd>{{ 'Estricto USDC/Base' if settings.strict_base_settlement else 'Cobertura máxima (requiere swaps)' }}</dd>
+        </dl>
+        <p class="small muted mt-2 mb-0">El webhook debe estar registrado y activo en PayRam → Settings → Webhook. La firma usa la misma API key del proyecto.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Facturación</h2></div>
+      <div class="card-body">
+        <dl class="kv">
+          <dt>URL pública</dt><dd class="mono">{{ settings.base_url }}</dd>
+          <dt>Empresa</dt><dd>{{ settings.company_legal_name }}</dd>
+          <dt>ID fiscal</dt><dd>{{ settings.company_tax_id }}</dd>
+          <dt>Correo de facturación</dt><dd>{{ settings.company_email }}</dd>
+          <dt>Prefijo</dt><dd class="mono">{{ settings.invoice_prefix }}</dd>
+          <dt>Vigencia del link</dt><dd>{{ settings.invoice_link_ttl_days }} días</dd>
+          <dt>Impuesto por defecto</dt><dd>{{ percent(settings.default_tax_rate_bps) }}</dd>
+          <dt>Zona horaria</dt><dd>{{ settings.display_timezone }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Canales de envío</h2></div>
+      <div class="card-body">
+        <ul class="check-list">
+          <li><span class="{{ 'ok' if settings.smtp_configured else 'warn' }}">{{ '✓' if settings.smtp_configured else '!' }}</span><span><strong>SMTP:</strong> {{ 'configurado' if settings.smtp_configured else 'no configurado' }}{% if settings.smtp_configured %} · {{ settings.smtp_host }}:{{ settings.smtp_port }}{% endif %}</span></li>
+          <li><span class="{{ 'ok' if settings.whatsapp_cloud_configured else 'warn' }}">{{ '✓' if settings.whatsapp_cloud_configured else '!' }}</span><span><strong>WhatsApp Cloud API:</strong> {{ 'configurado' if settings.whatsapp_cloud_configured else 'no configurado (el enlace wa.me sí funciona)' }}</span></li>
+          <li><span class="{{ 'ok' if settings.billing_api_key else 'warn' }}">{{ '✓' if settings.billing_api_key else '!' }}</span><span><strong>API de integración:</strong> {{ 'habilitada' if settings.billing_api_key else 'deshabilitada' }}</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <aside class="stack">
+    <div class="card card-pad">
+      <h3 class="mb-1">Checklist de cobro</h3>
+      <ul class="check-list">
+        <li><span class="{{ 'ok' if payram_ok else 'warn' }}">{{ '✓' if payram_ok else '1' }}</span><span>PayRam instalado y accesible por HTTPS.</span></li>
+        <li><span class="{{ 'ok' if settings.payram_api_key else 'warn' }}">{{ '✓' if settings.payram_api_key else '2' }}</span><span>API key del proyecto en <span class="mono">.env</span>.</span></li>
+        <li><span class="warn">3</span><span>Wallet Master + Cold wallet desplegadas en Base.</span></li>
+        <li><span class="warn">4</span><span>USDC en Base habilitado en Payment Options.</span></li>
+        <li><span class="warn">5</span><span>Smart Bridge activo para BTC, USDT-Tron, Solana y BNB.</span></li>
+        <li><span class="warn">6</span><span>Tarjetas activas solo con PayRam Wallet (liquidación Base).</span></li>
+        <li><span class="warn">7</span><span>Webhook registrado y activo.</span></li>
+        <li><span class="warn">8</span><span>Pago de prueba de USD 1 verificado de punta a punta.</span></li>
+      </ul>
+    </div>
+
+    <div class="card card-pad">
+      <h3 class="mb-1">Seguridad</h3>
+      <p class="small muted">El panel usa sesión firmada, CSRF, límite de intentos y cabeceras de seguridad. El webhook verifica HMAC-SHA256 del cuerpo crudo con la API key.</p>
+      <p class="small muted mb-0">No publiques el archivo <span class="mono">.env</span> ni el <span class="mono">AES_KEY</span> de PayRam. Sin esa clave no se pueden descifrar las wallets calientes.</p>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}

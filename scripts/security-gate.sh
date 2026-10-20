@@ -14,7 +14,8 @@ load_env() {
     export "$key=$value"
   done <"$file"
 }
-load_env "$APP_DIR/.env"
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
+load_env "$ENV_FILE"
 
 ERRORS=()
 WARNINGS=()

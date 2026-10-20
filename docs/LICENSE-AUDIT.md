@@ -68,6 +68,14 @@ auditable, pero es un desarrollo grande y no es “PayRam clonado”.
 Puedes hacer fork de `payram-scripts` y `payram-runtime-base` con atribución,
 pero eso **no te da el core**. No los presentes como “PayRam completo”.
 
+## Declaración del propietario
+
+El propietario de este repo indica que PayRam declara MIT en redes sociales y
+asume esa licencia para continuar. Esta auditoría **no encontró evidencia
+verificable** en los repos públicos ni en la imagen; la afirmación del
+propietario no se puede certificar desde aquí. Este repositorio no redistribuye
+el core/imagen; solo contiene nuestro overlay y billing.
+
 ## Conclusión
 
 - El overlay `payram-hardened` es tuyo (MIT) y se puede publicar.

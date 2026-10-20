@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Facturas{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow">Panel</div>
+    <h1>Facturas</h1>
+    <p>Crea una factura, genera el link de PayRam y envíalo a tu cliente.</p>
+  </div>
+  <a class="btn btn-primary" href="/admin/invoices/new">Nueva factura</a>
+</div>
+
+{% if not payram_configured %}
+<div class="alert warning">
+  <strong>PayRam aún no está conectado.</strong>
+  Configura <span class="mono">PAYRAM_BASE_URL</span> y <span class="mono">PAYRAM_API_KEY</span> en el archivo <span class="mono">.env</span> y reinicia el servicio. Puedes crear facturas, pero los links de pago fallarán hasta entonces.
+</div>
+{% endif %}
+
+<div class="stats">
+  <div class="card stat">
+    <div class="stat-label">Facturado</div>
+    <div class="stat-value">{{ money(stats.invoiced) }}</div>
+    <div class="stat-sub">Facturas válidas acumuladas</div>
+  </div>
+  <div class="card stat accent">
+    <div class="stat-label">Cobrado</div>
+    <div class="stat-value">{{ money(stats.collected) }}</div>
+    <div class="stat-sub">Pagos confirmados</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Por cobrar</div>
+    <div class="stat-value">{{ money(stats.outstanding) }}</div>
+    <div class="stat-sub">Pendientes y parciales</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-label">Facturas</div>
+    <div class="stat-value">{{ stats.count }}</div>
+    <div class="stat-sub">En todos los estados</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2>Listado</h2>
+    <form method="get" action="/admin" class="flex gap-1 flex-wrap">
+      <input class="input" style="width:220px" type="search" name="q" value="{{ q }}" placeholder="Buscar número o cliente">
+      <select class="select" name="status" style="width:170px">
+        <option value="all" {% if status == 'all' %}selected{% endif %}>Todos los estados</option>
+        <option value="open" {% if status == 'open' %}selected{% endif %}>Pendientes</option>
+        <option value="partially_paid" {% if status == 'partially_paid' %}selected{% endif %}>Pago parcial</option>
+        <option value="paid" {% if status == 'paid' %}selected{% endif %}>Pagadas</option>
+        <option value="overpaid" {% if status == 'overpaid' %}selected{% endif %}>Pagadas con exceso</option>
+        <option value="draft" {% if status == 'draft' %}selected{% endif %}>Borradores</option>
+        <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Anuladas</option>
+        <option value="expired" {% if status == 'expired' %}selected{% endif %}>Expiradas</option>
+      </select>
+      <button class="btn" type="submit">Filtrar</button>
+    </form>
+  </div>
+
+  {% if invoices %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Factura</th>
+          <th>Cliente</th>
+          <th>Emisión</th>
+          <th>Vence</th>
+          <th class="num">Total</th>
+          <th class="num">Cobrado</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for invoice in invoices %}
+        <tr>
+          <td>
+            <a class="row-link" href="/admin/invoices/{{ invoice.id }}">{{ invoice.number }}</a>
+            <div class="sub">{{ invoice.description or 'Sin descripción' }}</div>
+          </td>
+          <td>
+            <div class="strong">{{ invoice.customer_name }}</div>
+            <div class="sub">{{ invoice.customer_email }}</div>
+          </td>
+          <td class="nowrap">{{ format_date(invoice.issue_date) }}</td>
+          <td class="nowrap">{{ format_date(invoice.due_date) }}</td>
+          <td class="num">{{ money(invoice.total_cents) }}</td>
+          <td class="num">{{ money(invoice.paid_amount_cents) }}</td>
+          <td><span class="badge {{ status_class(invoice.status) }}">{{ status_label(invoice.status) }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pages > 1 %}
+  <div class="pagination">
+    <span>{{ total_count }} factura{{ 's' if total_count != 1 else '' }}</span>
+    <div class="pages">
+      {% for p in range(1, pages + 1) %}
+        {% if p == page %}
+          <span class="current">{{ p }}</span>
+        {% else %}
+          <a href="/admin?page={{ p }}&status={{ status }}&q={{ q|urlencode }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty">
+    <h3>No hay facturas todavía</h3>
+    <p>Crea la primera y genera un link de pago multi‑método liquidado en USDC en Base.</p>
+    <a class="btn btn-primary" href="/admin/invoices/new">Crear factura</a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

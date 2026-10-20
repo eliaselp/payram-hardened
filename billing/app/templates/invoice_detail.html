@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.number }}{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="eyebrow"><a href="/admin">Facturas</a> / Detalle</div>
+    <h1>{{ invoice.number }}</h1>
+    <p>{{ invoice.customer_name }} · {{ invoice.customer_email }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="/admin/invoices/{{ invoice.id }}/pdf">Descargar PDF</a>
+    {% if invoice.status not in ['paid', 'overpaid'] %}
+      <a class="btn" href="{{ whatsapp_url }}" target="_blank" rel="noopener">WhatsApp</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <section class="card invoice-preview">
+    <div class="invoice-top">
+      <div>
+        <div class="invoice-brand">{{ settings.company_legal_name }}<small>{{ settings.company_address }}<br>ID fiscal: {{ settings.company_tax_id }}</small></div>
+      </div>
+      <div class="invoice-meta">
+        <div class="number">FACTURA {{ invoice.number }}</div>
+        <div class="amount">{{ money(invoice.total_cents) }}</div>
+        <div class="mt-1"><span class="badge {{ status_class(invoice.status) }}">{{ status_label(invoice.status) }}</span></div>
+      </div>
+    </div>
+
+    <div class="invoice-parties">
+      <div>
+        <div class="party-label">Facturar a</div>
+        <div class="party-name">{{ invoice.customer_name }}</div>
+        <div class="party-line">{{ invoice.customer_email }}</div>
+        {% if invoice.customer_phone %}<div class="party-line">{{ invoice.customer_phone }}</div>{% endif %}
+      </div>
+      <div>
+        <div class="party-label">Fechas</div>
+        <div class="party-line">Emitida: {{ format_date(invoice.issue_date) }}</div>
+        <div class="party-line">Vence: {{ format_date(invoice.due_date) }}</div>
+        {% if invoice.paid_at %}<div class="party-line">Pagada: {{ format_datetime(invoice.paid_at) }}</div>{% endif %}
+      </div>
+    </div>
+
+    {% if invoice.description %}
+      <p class="muted small mb-2">{{ invoice.description }}</p>
+    {% endif %}
+
+    <div class="items-list">
+      <div class="item-row item-head">
+        <div>Descripción</div>
+        <div class="right">Cant.</div>
+        <div class="right">Precio</div>
+        <div class="right">Total</div>
+      </div>
+      {% for item in invoice.items %}
+      <div class="item-row">
+        <div>{{ item.description }}</div>
+        <div class="right">{{ quantity(item.quantity) }}</div>
+        <div class="right">{{ money(item.unit_price_cents) }}</div>
+        <div class="right">{{ money(item.line_total_cents) }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="totals">
+      <div class="line"><span>Subtotal</span><span>{{ money(invoice.subtotal_cents) }}</span></div>
+      <div class="line"><span>Impuesto ({{ percent(invoice.tax_rate_bps) }})</span><span>{{ money(invoice.tax_cents) }}</span></div>
+      <div class="line total"><span>Total</span><span>{{ money(invoice.total_cents) }}</span></div>
+    </div>
+
+    {% if invoice.notes %}
+    <div class="invoice-notes">{{ invoice.notes }}</div>
+    {% endif %}
+  </section>
+
+  <aside class="pay-panel">
+    <div class="card card-pad">
+      <div class="stat-label">Importe</div>
+      <div class="pay-amount">{{ money(invoice.total_cents) }}</div>
+      <div class="pay-status"><span class="badge {{ status_class(invoice.status) }}">{{ status_label(invoice.status) }}</span></div>
+
+      {% if invoice.status in ['paid', 'overpaid'] %}
+        <div class="alert success mb-0">
+          <strong>Pago confirmado</strong><br>
+          Cobrado: {{ money(invoice.paid_amount_cents) }}<br>
+          {% if invoice.paid_tx_hash %}<span class="tx-hash">{{ invoice.paid_tx_hash }}</span>{% endif %}
+        </div>
+      {% elif invoice.status == 'partially_paid' %}
+        <div class="alert warning">
+          Pago parcial recibido: <strong>{{ money(invoice.paid_amount_cents) }}</strong><br>
+          Pendiente: <strong>{{ money(invoice.total_cents - invoice.paid_amount_cents) }}</strong>
+        </div>
+      {% elif invoice.status == 'cancelled' %}
+        <div class="alert error mb-0">Factura anulada. No se aceptarán pagos desde la página pública.</div>
+      {% elif invoice.status == 'expired' %}
+        <div class="alert warning mb-0">El link de pago expiró. Genera uno nuevo para cobrar.</div>
+      {% endif %}
+
+      {% if invoice.payram_url and invoice.status not in ['paid', 'overpaid', 'cancelled'] %}
+        <div class="field mt-2">
+          <label>Link público de la factura</label>
+          <div class="link-box">
+            <input id="public-link" value="{{ public_url }}" readonly>
+            <button class="btn btn-sm" type="button" data-copy="#public-link">Copiar</button>
+          </div>
+        </div>
+        <div class="action-stack mt-2">
+          <a class="btn btn-primary" href="{{ invoice.payram_url }}" target="_blank" rel="noopener">Abrir checkout de PayRam</a>
+          <button class="btn" type="button" data-copy data-copy-value="{{ invoice.payram_url }}">Copiar link de checkout</button>
+          <form method="post" action="/admin/invoices/{{ invoice.id }}/send-email">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-block" type="submit">Enviar por correo</button>
+          </form>
+          {% if whatsapp_cloud_configured %}
+          <form method="post" action="/admin/invoices/{{ invoice.id }}/send-whatsapp">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-block" type="submit">Enviar por WhatsApp Cloud</button>
+          </form>
+          {% endif %}
+          <form method="post" action="/admin/invoices/{{ invoice.id }}/refresh">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-block" type="submit">Sincronizar con PayRam</button>
+          </form>
+        </div>
+      {% elif invoice.status == 'draft' %}
+        <div class="alert warning">Esta factura todavía no tiene link de pago.</div>
+        <form method="post" action="/admin/invoices/{{ invoice.id }}/link">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-primary btn-block" type="submit">Generar link de pago</button>
+        </form>
+      {% endif %}
+
+      <div class="divider"></div>
+
+      <div class="meta-list">
+        <div class="meta-row"><span class="k">Referencia PayRam</span><span class="v mono">{{ invoice.payram_reference_id or '—' }}</span></div>
+        <div class="meta-row"><span class="k">Estado PayRam</span><span class="v">{{ invoice.last_payment_state or '—' }}</span></div>
+        <div class="meta-row"><span class="k">Correo enviado</span><span class="v">{{ format_datetime(invoice.email_sent_at) if invoice.email_sent_at else '—' }}</span></div>
+        <div class="meta-row"><span class="k">WhatsApp enviado</span><span class="v">{{ format_datetime(invoice.whatsapp_sent_at) if invoice.whatsapp_sent_at else '—' }}</span></div>
+      </div>
+
+      {% if invoice.email_last_error %}
+        <div class="alert error mt-2 mb-0"><strong>Último error de correo:</strong><br>{{ invoice.email_last_error }}</div>
+      {% endif %}
+      {% if not email_configured %}
+        <div class="alert warning mt-2 mb-0">SMTP no configurado. El envío por correo está deshabilitado.</div>
+      {% endif %}
+
+      <div class="divider"></div>
+      <div class="btn-row">
+        {% if invoice.status not in ['paid', 'overpaid', 'cancelled'] %}
+        <form method="post" action="/admin/invoices/{{ invoice.id }}/link" data-confirm="¿Regenerar el link? El anterior puede seguir activo hasta expirar.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="force" value="1">
+          <button class="btn btn-sm" type="submit">Regenerar link</button>
+        </form>
+        <form method="post" action="/admin/invoices/{{ invoice.id }}/cancel" data-confirm="¿Anular esta factura? El link de PayRam puede seguir activo hasta su expiración.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-sm btn-danger" type="submit">Anular</button>
+        </form>
+        {% elif invoice.status == 'cancelled' %}
+        <form method="post" action="/admin/invoices/{{ invoice.id }}/reactivate">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-sm" type="submit">Reactivar factura</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card card-pad mt-2">
+      <h3 class="mb-1">Métodos de pago</h3>
+      <p class="small muted mb-0">{{ settings.payment_methods_note }}</p>
+      <div class="meta-row mt-2"><span class="k">Liquidación</span><span class="v">USDC · Base</span></div>
+      <div class="meta-row"><span class="k">Webhook</span><span class="v mono" style="font-size:10.5px">{{ webhook_url }}</span></div>
+    </div>
+  </aside>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h2>Intentos de pago</h2><span class="small muted">{{ attempts|length }} intento{{ 's' if attempts|length != 1 else '' }}</span></div>
+  {% if attempts %}
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Referencia</th><th>Estado</th><th class="num">Solicitado</th><th class="num">Recibido</th><th>Creado</th><th>Expira</th><th>Tx</th></tr>
+      </thead>
+      <tbody>
+        {% for attempt in attempts %}
+        <tr>
+          <td class="mono">{{ attempt.reference_id }}</td>
+          <td><span class="badge {{ 'success' if attempt.state in ['FILLED','OVER_FILLED'] else ('warning' if attempt.state in ['OPEN','PARTIALLY_FILLED'] else 'danger') }}">{{ attempt.state }}</span></td>
+          <td class="num">{{ money(attempt.requested_amount_cents) }}</td>
+          <td class="num">{{ money(attempt.filled_amount_cents) }}</td>
+          <td class="nowrap">{{ format_datetime(attempt.created_at) }}</td>
+          <td class="nowrap">{{ format_datetime(attempt.expires_at) }}</td>
+          <td class="mono" style="max-width:180px;overflow:hidden;text-overflow:ellipsis">{{ attempt.tx_hash or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><p class="mb-0">Aún no hay intentos de pago.</p></div>
+  {% endif %}
+</div>
+
+<div class="card mt-3">
+  <div class="card-header"><h2>Historial</h2></div>
+  <div class="card-body">
+    <div class="timeline">
+      {% for log in logs %}
+      <div class="timeline-item">
+        <span class="timeline-dot"></span>
+        <div class="timeline-body">
+          <div class="timeline-title">{{ log.action }}</div>
+          <div class="timeline-sub">{{ format_datetime(log.created_at) }} · {{ log.actor }}{% if log.detail %} · {{ log.detail }}{% endif %}</div>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted small mb-0">Sin eventos registrados.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

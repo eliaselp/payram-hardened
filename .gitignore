@@ -2,6 +2,10 @@
 *.log
 audit-output/
 data/
+!billing/data/
+billing/data/*
+!billing/data/.gitkeep
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.env.qa

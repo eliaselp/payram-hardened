@@ -86,6 +86,20 @@ sudo ./scripts/host-tuning.sh
 
 Activa `vm.overcommit_memory=1` (Redis) y `vm.swappiness=10`.
 
+## Stack QA completo
+
+Incluye `billing/` (nuestra app de facturación), `docker-compose.qa.yml`, Caddy
+con dos dominios, PostgreSQL y PayRam hardened.
+
+```bash
+cp .env.qa.example .env.qa
+# edita dominios y secretos
+./scripts/bootstrap-qa.sh
+./scripts/qa-smoke.sh
+```
+
+Guía: [docs/DEPLOY-QA.md](docs/DEPLOY-QA.md) · pruebas: [docs/QA-MAINNET-TEST.md](docs/QA-MAINNET-TEST.md).
+
 ## Requisitos
 
 - Docker Compose v2.24+.

@@ -1,0 +1,16 @@
+{{ settings.company_name }}
+Pago recibido — Factura {{ invoice.number }}
+
+Hola {{ invoice.customer_name }},
+
+Hemos recibido el pago de la factura {{ invoice.number }} por USD {{ "%.2f"|format(invoice.paid_amount_cents / 100) }}.
+
+{% if invoice.paid_tx_hash %}Transacción: {{ invoice.paid_tx_hash }}{% endif %}
+
+Ver factura:
+{{ pay_url }}
+
+Gracias por tu pago.
+
+{{ settings.company_legal_name }}
+{{ settings.company_email }}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pago recibido — {{ invoice.number }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f7f9;padding:28px 14px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">
+          <tr>
+            <td style="padding:28px 30px;border-bottom:1px solid #e2e8f0;">
+              <div style="font-size:17px;font-weight:700;">{{ settings.company_name }}</div>
+              <div style="font-size:12px;color:#64748b;margin-top:2px;">Pago recibido</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:30px;">
+              <div style="font-size:40px;line-height:1;margin-bottom:10px;">✓</div>
+              <h1 style="margin:0 0 8px;font-size:22px;letter-spacing:-.02em;">Pago confirmado</h1>
+              <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#475569;">
+                Hemos recibido el pago de la factura <strong style="color:#0f172a;">{{ invoice.number }}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;margin:0 0 20px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#047857;font-weight:700;">Importe recibido</div>
+                    <div style="font-size:30px;font-weight:800;letter-spacing:-.03em;color:#0f172a;margin:4px 0 0;">USD {{ "%.2f"|format(invoice.paid_amount_cents / 100) }}</div>
+                  </td>
+                </tr>
+              </table>
+              {% if invoice.paid_tx_hash %}
+              <p style="margin:0 0 16px;font-size:11px;color:#64748b;word-break:break-all;"><strong>Transacción:</strong> {{ invoice.paid_tx_hash }}</p>
+              {% endif %}
+              <p style="margin:0;font-size:12px;line-height:1.55;color:#64748b;">
+                Adjuntamos el PDF marcado como pagado. Gracias por tu pago.<br>
+                <a href="{{ pay_url }}" style="color:#047857;">Ver factura</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 30px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;line-height:1.5;color:#64748b;">
+              {{ settings.company_legal_name }} · {{ settings.company_email }}<br>
+              Los pagos on-chain son finales.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

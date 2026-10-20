@@ -1,0 +1,85 @@
+name: security
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  billing-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r billing/requirements-dev.txt
+      - name: Tests
+        working-directory: billing
+        run: pytest -q
+      - name: Dependency audit
+        working-directory: billing
+        run: pip-audit -r requirements.lock
+      - name: Bandit
+        working-directory: billing
+        run: bandit -q -r app -ll
+      - name: Ruff
+        working-directory: billing
+        run: ruff check app tests --ignore B008
+
+  compose-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare QA env
+        run: |
+          pip install -r billing/requirements.txt
+          cp .env.qa.example .env.qa
+          HASH=$(PYTHONPATH=billing python3 -c "from app.security import hash_password; print(hash_password('ci-admin-password-123'))")
+          python3 scripts/ci_prepare_env.py .env.qa "$HASH"
+      - name: Security gate
+        run: ENV_FILE=.env.qa ./scripts/security-gate.sh
+      - name: Compose config
+        run: docker compose -f docker-compose.qa.yml --env-file .env.qa config --quiet
+
+  caddy-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm \
+            -e BILLING_DOMAIN=billing.example.com \
+            -e PAYRAM_DOMAIN=pay.example.com \
+            -e ACME_EMAIL=admin@example.com \
+            -v "$PWD/deploy/qa/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.11.4-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+  image-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build billing image
+        run: docker build -t payram-billing-ci ./billing
+      - name: Trivy billing image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: payram-billing-ci
+          format: table
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+      - name: Trivy PayRam image (report only)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: payramapp/payram@sha256:1181cd5d886a50d68565c275dad231d9a1d75735dca3ce5873f334c2f9db3791
+          format: table
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"

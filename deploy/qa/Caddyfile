@@ -1,0 +1,33 @@
+{
+  email {$ACME_EMAIL}
+  admin off
+}
+
+# API interna para billing; no se publica al host.
+:8080 {
+  reverse_proxy payram:80
+}
+
+{$BILLING_DOMAIN} {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    -Server
+  }
+  reverse_proxy billing:8000
+}
+
+{$PAYRAM_DOMAIN} {
+  encode zstd gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    -Server
+  }
+  @blocked path /_next/image* /_next/webpack-hmr* /__nextjs* /swagger* /api/og* /opengraph-image* /twitter-image* /api/v1/health
+  respond @blocked 404
+  reverse_proxy payram:80
+}
