@@ -221,7 +221,7 @@ remove_firewall() {
   if [[ "$UFW_RULES_ADDED" != "1" && "$PURGE_FIREWALL" -ne 1 ]]; then
     return
   fi
-  command -v ufw >/dev/null 2>&1 || return
+  command -v ufw >/dev/null 2>&1 || return 0
   log "Quitando reglas UFW añadidas..."
   ufw delete allow 80/tcp >/dev/null 2>&1 || true
   ufw delete allow 443/tcp >/dev/null 2>&1 || true
@@ -233,14 +233,14 @@ remove_firewall() {
 }
 
 remove_fail2ban() {
-  [[ "$FAIL2BAN_JAIL" == "1" ]] || return
+  [[ "$FAIL2BAN_JAIL" == "1" ]] || return 0
   log "Quitando jail de fail2ban..."
   rm -f /etc/fail2ban/jail.d/payram-hardened.local
   systemctl restart fail2ban >/dev/null 2>&1 || true
 }
 
 remove_swap() {
-  [[ "$SWAP_CREATED" == "1" ]] || return
+  [[ "$SWAP_CREATED" == "1" ]] || return 0
   if [[ -f /swapfile ]]; then
     log "Desactivando swap creado por setup..."
     swapoff /swapfile >/dev/null 2>&1 || true
@@ -250,31 +250,36 @@ remove_swap() {
 }
 
 remove_sysctl() {
-  [[ "$SYSCTL_ADDED" == "1" ]] || return
+  [[ "$SYSCTL_ADDED" == "1" ]] || return 0
   log "Quitando sysctl añadidos..."
   sed -i '/^vm.swappiness=10$/d; /^vm.overcommit_memory=1$/d' /etc/sysctl.conf || true
   sysctl --system >/dev/null 2>&1 || true
 }
 
 restore_docker_config() {
-  [[ "$PURGE_SYSTEM" -eq 1 ]] && return
-  [[ "$DOCKERD_CONFIG" == "1" ]] || return
+  [[ "$PURGE_SYSTEM" -eq 1 ]] && return 0
+  [[ "$DOCKERD_CONFIG" == "1" ]] || return 0
   local daemon="/etc/docker/daemon.json"
   local backup="${daemon}.payram.bak"
   if [[ "$DOCKERD_BACKUP" == "1" && -f "$backup" ]]; then
     if docker_available && [[ -n "$(docker ps -aq 2>/dev/null)" ]]; then
       warn "Hay otros contenedores; no se restaura daemon.json para no romperlos."
-      return
+      return 0
     fi
     cp -a "$backup" "$daemon"
     rm -f "$backup"
     systemctl restart docker >/dev/null 2>&1 || true
     log "daemon.json restaurado."
+  elif [[ "$DOCKERD_BACKUP" == "0" && -f "$daemon" ]]; then
+    # setup creó daemon.json desde cero: no hay backup que restaurar.
+    rm -f "$daemon"
+    systemctl restart docker >/dev/null 2>&1 || true
+    log "daemon.json creado por setup eliminado."
   fi
 }
 
 purge_system() {
-  [[ "$PURGE_SYSTEM" -eq 1 ]] || return
+  [[ "$PURGE_SYSTEM" -eq 1 ]] || return 0
   docker_available || { warn "Docker no está disponible; se omite purga."; return; }
   if [[ -n "$(docker ps -aq 2>/dev/null)" ]]; then
     die "Hay contenedores de otros proyectos. No se purga Docker. Usa --keep-data y limpia manualmente."
