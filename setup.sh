@@ -843,8 +843,8 @@ install_systemd() {
   cat >/etc/systemd/system/payram-hardened.service <<EOF
 [Unit]
 Description=PayRam Hardened stack
-Requires=docker.service
-After=docker.service network-online.target
+Requires=docker.service docker.socket
+After=docker.service docker.socket network-online.target
 Wants=network-online.target
 
 [Service]
@@ -853,6 +853,7 @@ RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR
 Environment=HOME=/root
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
 ExecStartPre=$DOCKER_BIN info
 ExecStart=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str up -d --no-build
 ExecStop=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str down
