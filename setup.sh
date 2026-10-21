@@ -523,6 +523,17 @@ prepare_env() {
   [[ -n "$requested_email" ]] && ACME_EMAIL="$requested_email"
   [[ -n "$requested_token" ]] && CLOUDFLARE_TUNNEL_TOKEN="$requested_token"
 
+  # Migración: el mirror GHCR de Caddy/Postgres guardó digests de Docker Hub.
+  # Esos manifests no existen en GHCR; usar las imágenes upstream fijadas.
+  if [[ "${POSTGRES_IMAGE:-}" == ghcr.io/eliaselp/payram-postgres@sha256:721873* ]]; then
+    POSTGRES_IMAGE="postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+    warn "Migrando POSTGRES_IMAGE a Docker Hub (el digest GHCR no existe)."
+  fi
+  if [[ "${CADDY_IMAGE:-}" == ghcr.io/eliaselp/payram-caddy@sha256:6aeddd* ]]; then
+    CADDY_IMAGE="caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b"
+    warn "Migrando CADDY_IMAGE a Docker Hub (el digest GHCR no existe)."
+  fi
+
   if [[ "$EDGE_MODE" == "tunnel" ]]; then
     # Constantes para este despliegue. Se pueden sobrescribir con --domain /
     # --payram-domain o variables de entorno, pero no se preguntan.
