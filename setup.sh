@@ -80,7 +80,7 @@ die()  { printf '\033[1;31m[setup]\033[0m %s\n' "$*" >&2; exit 1; }
 # Enter y Ctrl-C, y restaura el terminal siempre.
 read_secret() {
   local prompt="$1" var="$2"
-  local value="" char old_stty=""
+  local value="" char old_stty="" pending=""
   printf '%s' "$prompt" >&2
 
   if [[ ! -t 0 ]] || ! command -v stty >/dev/null 2>&1; then
@@ -101,10 +101,24 @@ read_secret() {
   trap 'stty "$old_stty" 2>/dev/null || true; trap - INT; printf "\n" >&2; return 130' INT
   stty -echo 2>/dev/null || true
 
+  # Consumir newlines residuales de terminales que envían CRLF y, si el
+  # usuario ya empezó a escribir, procesar ese primer carácter.
+  while IFS= read -rsn1 -t 0.02 pending; do
+    if [[ "$pending" == $'\r' || "$pending" == $'\n' ]]; then
+      continue
+    fi
+    if [[ -n "$pending" ]]; then
+      value+="$pending"
+      printf '*' >&2
+    fi
+    break
+  done
+
   while true; do
     if ! IFS= read -rsn1 char; then
       break
     fi
+    [[ -z "$char" ]] && break
     case "$char" in
       $'\r'|$'\n') break ;;
       $'\177'|$'\b')
