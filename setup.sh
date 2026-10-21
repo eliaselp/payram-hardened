@@ -851,6 +851,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR
+Environment=HOME=/root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=$DOCKER_BIN info
 ExecStart=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str up -d --no-build
 ExecStop=$DOCKER_BIN compose -f $INSTALL_DIR/$COMPOSE_FILE --env-file $INSTALL_DIR/.env.qa $profile_str down
 TimeoutStartSec=0
@@ -859,7 +862,12 @@ TimeoutStartSec=0
 WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
-  systemctl enable --now payram-hardened.service
+  systemctl enable payram-hardened.service
+  if ! systemctl start payram-hardened.service; then
+    warn "systemd no pudo arrancar el stack. El stack actual sigue arriba."
+    warn "Revisa: systemctl status payram-hardened.service --no-pager -l"
+    warn "Y: journalctl -u payram-hardened.service -n 80 --no-pager"
+  fi
   state_set SYSTEMD_UNIT "1"
 }
 
