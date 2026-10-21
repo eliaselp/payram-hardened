@@ -76,6 +76,72 @@ log()  { printf '\033[1;32m[setup]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[setup]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[setup]\033[0m %s\n' "$*" >&2; exit 1; }
 
+# Lee un secreto sin eco, mostrando un '*' por carácter. Soporta backspace,
+# Enter y Ctrl-C, y restaura el terminal siempre.
+read_secret() {
+  local prompt="$1" var="$2"
+  local value="" char old_stty=""
+  printf '%s' "$prompt" >&2
+
+  if [[ ! -t 0 ]] || ! command -v stty >/dev/null 2>&1; then
+    IFS= read -rs value || true
+    printf '\n' >&2
+    printf -v "$var" '%s' "$value"
+    return 0
+  fi
+
+  old_stty="$(stty -g 2>/dev/null || true)"
+  if [[ -z "$old_stty" ]]; then
+    IFS= read -rs value || true
+    printf '\n' >&2
+    printf -v "$var" '%s' "$value"
+    return 0
+  fi
+
+  trap 'stty "$old_stty" 2>/dev/null || true; trap - INT; printf "\n" >&2; return 130' INT
+  stty -echo 2>/dev/null || true
+
+  while true; do
+    if ! IFS= read -rsn1 char; then
+      break
+    fi
+    case "$char" in
+      $'\r'|$'\n') break ;;
+      $'\177'|$'\b')
+        if [[ -n "$value" ]]; then
+          value="${value%?}"
+          printf '\b \b' >&2
+        fi
+        ;;
+      $'\004')
+        if [[ -z "$value" ]]; then
+          stty "$old_stty" 2>/dev/null || true
+          trap - INT
+          printf '\n' >&2
+          return 1
+        fi
+        break
+        ;;
+      $'\003')
+        stty "$old_stty" 2>/dev/null || true
+        trap - INT
+        printf '\n' >&2
+        return 130
+        ;;
+      *)
+        value+="$char"
+        printf '*' >&2
+        ;;
+    esac
+  done
+
+  stty "$old_stty" 2>/dev/null || true
+  trap - INT
+  printf '\n' >&2
+  printf -v "$var" '%s' "$value"
+  return 0
+}
+
 usage() {
   cat <<'USAGE'
 Uso: setup.sh [opciones]
@@ -292,6 +358,7 @@ JSON
 }
 
 configure_host() {
+  touch /etc/sysctl.conf
   if ! swapon --show 2>/dev/null | grep -q .; then
     local avail_kb
     avail_kb="$(df --output=avail / | tail -1 | tr -d ' ')"
@@ -449,7 +516,7 @@ prepare_env() {
     PAYRAM_DOMAIN="${requested_payram:-payment.accesscontrol.ink}"
     if [[ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]]; then
       if [[ -t 0 ]]; then
-        read -rsp "Cloudflare Tunnel token: " CLOUDFLARE_TUNNEL_TOKEN; echo
+        read_secret "Cloudflare Tunnel token: " CLOUDFLARE_TUNNEL_TOKEN
       else
         die "Falta CLOUDFLARE_TUNNEL_TOKEN para --tunnel."
       fi
@@ -586,7 +653,7 @@ ghcr_login() {
   elif [[ -t 0 ]]; then
     warn "Login GHCR necesario para bajar imágenes privadas."
     local token
-    read -rsp "GHCR token (read:packages) [Enter para login interactivo]: " token; echo
+    read_secret "GHCR token (read:packages) [Enter para login interactivo]: " token
     if [[ -n "$token" ]]; then
       printf '%s' "$token" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
     else
@@ -618,7 +685,7 @@ admin_hash() {
   fi
   if [[ -z "$ADMIN_PASSWORD" ]]; then
     if [[ -t 0 ]]; then
-      read -rsp "Contraseña admin de Billing: " ADMIN_PASSWORD; echo
+      read_secret "Contraseña admin de Billing: " ADMIN_PASSWORD
     else
       die "Falta ADMIN_PASSWORD y no hay hash existente."
     fi
@@ -730,7 +797,7 @@ configure_payram_key() {
 
 EOF
   local key
-  read -rsp "PAYRAM_API_KEY: " key; echo
+  read_secret "PAYRAM_API_KEY: " key
   key="${key//$'\r'/}"
   key="${key//$'\n'/}"
   if [[ -n "$key" ]]; then
