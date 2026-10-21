@@ -839,7 +839,12 @@ EOF
 
 install_systemd() {
   DOCKER_BIN="${DOCKER_BIN:-$(command -v docker)}"
-  local profile_str="${PROFILE_ARGS[*]:-}"
+  # NOTA: no usar "${PROFILE_ARGS[*]}" — IFS=$'\n\t' une con newline y rompe la
+  # unit systemd (ExecStart queda partido en dos líneas). Unir con espacios.
+  local profile_str=""
+  if ((${#PROFILE_ARGS[@]})); then
+    printf -v profile_str '%s ' "${PROFILE_ARGS[@]}"
+  fi
   cat >/etc/systemd/system/payram-hardened.service <<EOF
 [Unit]
 Description=PayRam Hardened stack
